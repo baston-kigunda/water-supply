@@ -1,0 +1,126 @@
+/* ========================================
+   FILE: style.css
+   PURPOSE: Main stylesheet for the entire application
+   ======================================== */
+
+:root {
+    --primary-color: #007bff;
+    --secondary-color: #6c757d;
+    --success-color: #28a745;
+    --danger-color: #dc3545;
+    --warning-color: #ffc107;
+    --info-color: #17a2b8;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f8f9fa;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+main {
+    flex: 1;
+}
+
+/* Dashboard cards */
+.dashboard-card {
+    transition: transform 0.3s;
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.dashboard-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+}
+
+/* Meter readings */
+.meter-reading {
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: var(--primary-color);
+}
+
+/* Status badges */
+.status-badge {
+    padding: 5px 10px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.status-active {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.status-inactive {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.status-pending {
+    background-color: #fff3cd;
+    color: #856404;
+}
+
+/* Responsive tables */
+.table-responsive {
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+/* Notifications */
+.notification-item {
+    border-left: 3px solid transparent;
+    transition: background-color 0.2s;
+}
+
+.notification-item.unread {
+    border-left-color: var(--primary-color);
+    background-color: #f0f7ff;
+}
+
+.notification-item:hover {
+    background-color: #f8f9fa;
+}
+
+/* Charts container */
+.chart-container {
+    position: relative;
+    height: 300px;
+    width: 100%;
+}
+
+/* Loading spinner */
+.spinner-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255,255,255,0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+    .meter-reading {
+        font-size: 2rem;
+    }
+    
+    .dashboard-card {
+        margin-bottom: 15px;
+    }
+    
+    .btn {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+}
