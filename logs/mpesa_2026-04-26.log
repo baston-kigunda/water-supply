@@ -1,0 +1,808 @@
+2026-04-26 13:41:45 - {"endpoint":"stk_push","input":{"phone":"254718219840","amount":14,"bill_id":31,"user_id":20}}
+2026-04-26 13:41:49 - {"access_token_response":null}
+2026-04-26 13:41:49 - {"error":"Failed to get access token","response":""}
+2026-04-26 13:42:25 - {"endpoint":"stk_push","input":{"phone":"254718219840","amount":14,"bill_id":31,"user_id":20}}
+2026-04-26 13:42:25 - {"access_token_response":null}
+2026-04-26 13:42:25 - {"error":"Failed to get access token","response":""}
+2026-04-26 13:43:46 - {"endpoint":"stk_push","input":{"phone":"254718219840","amount":15,"bill_id":31,"user_id":20}}
+2026-04-26 13:43:47 - {"access_token_response":null}
+2026-04-26 13:43:47 - {"error":"Failed to get access token","response":""}
+2026-04-26 13:46:37 - {"endpoint":"stk_push","input":[]}
+2026-04-26 13:49:17 - {"endpoint":"stk_push","input":{"phone":"254718219840","amount":15,"bill_id":31,"user_id":20}}
+2026-04-26 13:49:17 - {"handleSTKPush_received_data":{"phone":"254718219840","amount":15,"bill_id":31,"user_id":20}}
+2026-04-26 13:49:17 - {"extracted_values":{"phone":"254718219840","amount":15,"bill_id":31,"user_id":20}}
+2026-04-26 13:49:17 - {"access_token_response":null}
+2026-04-26 13:49:17 - {"error":"Failed to get access token","response":""}
+2026-04-26 13:49:40 - {"endpoint":"stk_push","input":{"phone":"254718219840","amount":15,"bill_id":31,"user_id":20}}
+2026-04-26 13:49:40 - {"handleSTKPush_received_data":{"phone":"254718219840","amount":15,"bill_id":31,"user_id":20}}
+2026-04-26 13:49:40 - {"extracted_values":{"phone":"254718219840","amount":15,"bill_id":31,"user_id":20}}
+2026-04-26 13:49:40 - {"access_token_response":null}
+2026-04-26 13:49:40 - {"error":"Failed to get access token","response":""}
+2026-04-26 13:50:18 - {"endpoint":"stk_push","input":[]}
+2026-04-26 13:50:18 - {"handleSTKPush_received_data":[]}
+2026-04-26 13:50:18 - {"extracted_values":{"phone":"","amount":0,"bill_id":null,"user_id":null}}
+2026-04-26 13:52:28 - {"raw_input":"phone=254708374149&amount=10&bill_id=1&user_id=1","content_type":"application\/x-www-form-urlencoded"}
+2026-04-26 13:52:28 - {"form_data_decoded":{"phone":"254708374149","amount":"10","bill_id":"1","user_id":"1"}}
+2026-04-26 13:52:28 - {"final_input":{"phone":"254708374149","amount":"10","bill_id":"1","user_id":"1"},"endpoint":"stk_push"}
+2026-04-26 13:52:28 - {"handleSTKPush_received_data":{"phone":"254708374149","amount":"10","bill_id":"1","user_id":"1"}}
+2026-04-26 13:52:29 - {"error":"Failed to get access token","response":""}
+2026-04-26 13:58:00 - {"raw_input":"phone=254708374149&amount=10&bill_id=1&user_id=1","content_type":"application\/x-www-form-urlencoded"}
+2026-04-26 13:58:00 - {"form_data_decoded":{"phone":"254708374149","amount":"10","bill_id":"1","user_id":"1"}}
+2026-04-26 13:58:00 - {"final_input":{"phone":"254708374149","amount":"10","bill_id":"1","user_id":"1"},"endpoint":"stk_push"}
+2026-04-26 13:58:00 - {"handleSTKPush_received_data":{"phone":"254708374149","amount":"10","bill_id":"1","user_id":"1"}}
+2026-04-26 13:58:11 - {"error":"Failed to get access token","response":""}
+2026-04-26 14:03:10 - {"raw_input":"{\"phone\":\"254718219840\",\"amount\":15,\"bill_id\":31,\"user_id\":20}","content_type":"application\/json"}
+2026-04-26 14:03:10 - {"json_decoded":{"phone":"254718219840","amount":15,"bill_id":31,"user_id":20}}
+2026-04-26 14:03:10 - {"final_input":{"phone":"254718219840","amount":15,"bill_id":31,"user_id":20},"endpoint":"stk_push"}
+2026-04-26 14:03:10 - {"handleSTKPush_received_data":{"phone":"254718219840","amount":15,"bill_id":31,"user_id":20}}
+2026-04-26 14:03:10 - {"attempting_token":{"url":"https:\/\/sandbox.safaricom.co.ke\/oauth\/v1\/generate?grant_type=client_credentials","time":"2026-04-26 14:03:10"}}
+2026-04-26 14:03:11 - {"token_response":{"http_code":400,"curl_error":"","response":null}}
+2026-04-26 14:03:11 - {"token_failed":""}
+2026-04-26 14:03:18 - {"raw_input":"phone=254708374149&amount=10&bill_id=1&user_id=1","content_type":"application\/x-www-form-urlencoded"}
+2026-04-26 14:03:18 - {"form_data_decoded":{"phone":"254708374149","amount":"10","bill_id":"1","user_id":"1"}}
+2026-04-26 14:03:18 - {"final_input":{"phone":"254708374149","amount":"10","bill_id":"1","user_id":"1"},"endpoint":"stk_push"}
+2026-04-26 14:03:18 - {"handleSTKPush_received_data":{"phone":"254708374149","amount":"10","bill_id":"1","user_id":"1"}}
+2026-04-26 14:03:18 - {"attempting_token":{"url":"https:\/\/sandbox.safaricom.co.ke\/oauth\/v1\/generate?grant_type=client_credentials","time":"2026-04-26 14:03:18"}}
+2026-04-26 14:03:18 - {"token_response":{"http_code":400,"curl_error":"","response":null}}
+2026-04-26 14:03:18 - {"token_failed":""}
+2026-04-26 14:10:23 - {"raw_input":"{\"phone\":\"254718219840\",\"amount\":15,\"bill_id\":31,\"user_id\":20}","content_type":"application\/json"}
+2026-04-26 14:10:23 - {"json_decoded":{"phone":"254718219840","amount":15,"bill_id":31,"user_id":20}}
+2026-04-26 14:10:23 - {"final_input":{"phone":"254718219840","amount":15,"bill_id":31,"user_id":20},"endpoint":"stk_push"}
+2026-04-26 14:10:23 - {"handleSTKPush_received_data":{"phone":"254718219840","amount":15,"bill_id":31,"user_id":20}}
+2026-04-26 14:10:23 - {"token_request":{"url":"https:\/\/sandbox.safaricom.co.ke\/oauth\/v1\/generate?grant_type=client_credentials","time":"2026-04-26 14:10:23"}}
+2026-04-26 14:10:25 - {"token_response":{"http_code":400,"error":"","response":""}}
+2026-04-26 14:10:48 - {"raw_input":"{\"phone\":\"254718219840\",\"amount\":15,\"bill_id\":31,\"user_id\":20}","content_type":"application\/json"}
+2026-04-26 14:10:48 - {"json_decoded":{"phone":"254718219840","amount":15,"bill_id":31,"user_id":20}}
+2026-04-26 14:10:48 - {"final_input":{"phone":"254718219840","amount":15,"bill_id":31,"user_id":20},"endpoint":"stk_push"}
+2026-04-26 14:10:48 - {"handleSTKPush_received_data":{"phone":"254718219840","amount":15,"bill_id":31,"user_id":20}}
+2026-04-26 14:10:48 - {"token_request":{"url":"https:\/\/sandbox.safaricom.co.ke\/oauth\/v1\/generate?grant_type=client_credentials","time":"2026-04-26 14:10:48"}}
+2026-04-26 14:10:49 - {"token_response":{"http_code":400,"error":"","response":""}}
+2026-04-26 14:13:04 - {"raw_input":"phone=254718219840&amount=15&bill_id=31&user_id=20","content_type":"application\/x-www-form-urlencoded"}
+2026-04-26 14:13:04 - {"form_data_decoded":{"phone":"254718219840","amount":"15","bill_id":"31","user_id":"20"}}
+2026-04-26 14:13:04 - {"final_input":{"phone":"254718219840","amount":"15","bill_id":"31","user_id":"20"},"endpoint":"stk_push"}
+2026-04-26 14:13:04 - {"handleSTKPush_received_data":{"phone":"254718219840","amount":"15","bill_id":"31","user_id":"20"}}
+2026-04-26 14:13:04 - {"token_request":{"url":"https:\/\/sandbox.safaricom.co.ke\/oauth\/v1\/generate?grant_type=client_credentials","time":"2026-04-26 14:13:04"}}
+2026-04-26 14:13:05 - {"token_response":{"http_code":400,"error":"","response":""}}
+2026-04-26 14:13:31 - {"raw_input":"phone=254718219840&amount=15&bill_id=31&user_id=20","content_type":"application\/x-www-form-urlencoded"}
+2026-04-26 14:13:31 - {"form_data_decoded":{"phone":"254718219840","amount":"15","bill_id":"31","user_id":"20"}}
+2026-04-26 14:13:31 - {"final_input":{"phone":"254718219840","amount":"15","bill_id":"31","user_id":"20"},"endpoint":"stk_push"}
+2026-04-26 14:13:31 - {"handleSTKPush_received_data":{"phone":"254718219840","amount":"15","bill_id":"31","user_id":"20"}}
+2026-04-26 14:13:31 - {"token_request":{"url":"https:\/\/sandbox.safaricom.co.ke\/oauth\/v1\/generate?grant_type=client_credentials","time":"2026-04-26 14:13:31"}}
+2026-04-26 14:13:32 - {"token_response":{"http_code":400,"error":"","response":""}}
+2026-04-26 14:23:38 - Action: stk_push, Input: {"phone":"254708374149","amount":"10","bill_id":"1","user_id":"1"}
+2026-04-26 14:23:38 - === STK PUSH REQUEST START ===
+2026-04-26 14:23:38 - Received data: {"phone":"254708374149","amount":"10","bill_id":"1","user_id":"1"}
+2026-04-26 14:23:38 - Formatted phone: 254708374149, Amount: 10, Bill: 1, User: 1
+2026-04-26 14:23:38 - Token HTTP: 400, Response: 
+2026-04-26 14:23:38 - Failed to get access token
+2026-04-26 14:26:03 - Action: stk_push, Input: {"phone":"254708374149","amount":"10","bill_id":"1","user_id":"1"}
+2026-04-26 14:26:03 - === STK PUSH REQUEST ===
+2026-04-26 14:26:03 - Phone: 254708374149, Amount: 10, Bill: 1, User: 1
+2026-04-26 14:26:04 - Token HTTP: 400
+2026-04-26 14:26:04 - Failed to get token. Response: 
+2026-04-26 14:26:04 - No access token received
+2026-04-26 14:27:19 - Action: stk_push, Input: []
+2026-04-26 14:27:19 - === STK PUSH REQUEST ===
+2026-04-26 14:27:39 - Action: stk_push, Input: {"phone":"254718219840","amount":"15","bill_id":"31","user_id":"20"}
+2026-04-26 14:27:39 - === STK PUSH REQUEST ===
+2026-04-26 14:27:39 - Phone: 254718219840, Amount: 15, Bill: 31, User: 20
+2026-04-26 14:27:39 - Token HTTP: 400
+2026-04-26 14:27:39 - Failed to get token. Response: 
+2026-04-26 14:27:39 - No access token received
+2026-04-26 14:28:01 - Action: stk_push, Input: {"phone":"254718219840","amount":"15","bill_id":"31","user_id":"20"}
+2026-04-26 14:28:01 - === STK PUSH REQUEST ===
+2026-04-26 14:28:01 - Phone: 254718219840, Amount: 15, Bill: 31, User: 20
+2026-04-26 14:28:02 - Token HTTP: 400
+2026-04-26 14:28:02 - Failed to get token. Response: 
+2026-04-26 14:28:02 - No access token received
+2026-04-26 14:28:53 - Action: stk_push, POST: {"phone":"254708374149","amount":"10","bill_id":"1","user_id":"1"}
+2026-04-26 14:28:53 - === STK PUSH START ===
+2026-04-26 14:28:53 - Raw: phone=254708374149, amount=10, bill=1, user=1
+2026-04-26 14:28:53 - Formatted phone: 254708374149
+2026-04-26 14:28:53 - Requesting token from: https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials
+2026-04-26 14:28:54 - Token HTTP: 400
+2026-04-26 14:28:54 - Token Response: 
+2026-04-26 14:28:54 - FAILED to get token
+2026-04-26 14:29:40 - Action: stk_push, POST: []
+2026-04-26 14:29:40 - === STK PUSH START ===
+2026-04-26 14:29:40 - Raw: phone=, amount=0, bill=0, user=0
+2026-04-26 14:33:52 - Action: stk_push, Input: {"phone":"254718219840","amount":"15","bill_id":"31","user_id":"20"}
+2026-04-26 14:33:52 - === STK PUSH REQUEST ===
+2026-04-26 14:33:52 - Phone: 254718219840, Amount: 15
+2026-04-26 14:33:53 - Token response: 
+2026-04-26 14:33:53 - Failed to get token
+2026-04-26 14:34:06 - Action: stk_push, Input: {"phone":"254708374149","amount":"10","bill_id":"1","user_id":"1"}
+2026-04-26 14:34:06 - === STK PUSH REQUEST ===
+2026-04-26 14:34:06 - Phone: 254708374149, Amount: 10
+2026-04-26 14:34:07 - Token response: 
+2026-04-26 14:34:07 - Failed to get token
+2026-04-26 14:35:10 - Action: stk_push, Input: {"phone":"254718219840","amount":"14","bill_id":"31","user_id":"20"}
+2026-04-26 14:35:10 - === STK PUSH REQUEST ===
+2026-04-26 14:35:10 - Phone: 254718219840, Amount: 14
+2026-04-26 14:35:26 - Token response: 
+2026-04-26 14:35:26 - Failed to get token
+2026-04-26 14:37:56 - Action: stk_push, Input: {"phone":"254708374149","amount":"10","bill_id":"1","user_id":"1"}
+2026-04-26 14:38:29 - Action: stk_push, Input: {"phone":"254708374149","amount":"10","bill_id":"1","user_id":"1"}
+2026-04-26 14:39:03 - Action: stk_push, Input: {"phone":"254708374149","amount":"10","bill_id":"1","user_id":"1"}
+2026-04-26 14:48:06 - {"endpoint":"stk_push","input":{"phone":"254718219840","amount":"14","bill_id":"31","user_id":"20"}}
+2026-04-26 14:48:07 - {"access_token_response":null}
+2026-04-26 14:48:07 - {"error":"Failed to get access token","response":""}
+2026-04-26 14:48:26 - {"endpoint":"stk_push","input":{"phone":"254718219840","amount":"15","bill_id":"31","user_id":"20"}}
+2026-04-26 14:48:26 - {"access_token_response":null}
+2026-04-26 14:48:26 - {"error":"Failed to get access token","response":""}
+2026-04-26 15:21:19 - {
+    "endpoint": "none",
+    "method": "POST",
+    "input": {
+        "bill_id": "31",
+        "amount": "15.00",
+        "payment_method": "mpesa",
+        "mpesa_number": "0718219840",
+        "make_payment": ""
+    }
+}
+
+2026-04-26 15:23:11 - {
+    "endpoint": "none",
+    "method": "POST",
+    "input": {
+        "bill_id": "31",
+        "amount": "15.00",
+        "payment_method": "mpesa",
+        "mpesa_number": "0718219840",
+        "make_payment": ""
+    }
+}
+
+2026-04-26 15:23:35 - {
+    "endpoint": "none",
+    "method": "GET",
+    "input": null
+}
+
+2026-04-26 15:23:44 - {
+    "endpoint": "none",
+    "method": "GET",
+    "input": null
+}
+
+2026-04-26 15:23:47 - {
+    "endpoint": "none",
+    "method": "GET",
+    "input": null
+}
+
+2026-04-26 15:28:11 - {
+    "endpoint": "none",
+    "method": "GET",
+    "input": null
+}
+
+2026-04-26 15:28:14 - {
+    "endpoint": "none",
+    "method": "GET",
+    "input": null
+}
+
+2026-04-26 15:28:29 - {
+    "endpoint": "test",
+    "method": "GET",
+    "input": null
+}
+
+2026-04-26 15:28:34 - {
+    "endpoint": "test",
+    "method": "GET",
+    "input": null
+}
+
+2026-04-26 15:30:23 - {
+    "endpoint": "stk_push",
+    "method": "POST",
+    "input": {
+        "phone": "254718219840",
+        "amount": 15,
+        "bill_id": 31,
+        "user_id": 20
+    }
+}
+
+2026-04-26 15:30:23 - {
+    "handleSTKPush called with": {
+        "phone": "254718219840",
+        "amount": 15,
+        "bill_id": 31,
+        "user_id": 20
+    }
+}
+
+2026-04-26 15:30:24 - {
+    "access_token_request": {
+        "url": "https:\/\/sandbox.safaricom.co.ke\/oauth\/v1\/generate?grant_type=client_credentials",
+        "http_code": 400,
+        "curl_error": ""
+    },
+    "response": null
+}
+
+2026-04-26 15:30:24 - {
+    "error": "Failed to get access token",
+    "response": ""
+}
+
+2026-04-26 15:30:31 - {
+    "endpoint": "test",
+    "method": "GET",
+    "input": null
+}
+
+2026-04-26 15:30:35 - {
+    "endpoint": "test",
+    "method": "GET",
+    "input": null
+}
+
+2026-04-26 15:31:52 - {
+    "endpoint": "stk_push",
+    "method": "POST",
+    "input": {
+        "amount": 10,
+        "user_id": 3,
+        "bill_id": 9,
+        "phone": "254708374149"
+    }
+}
+
+2026-04-26 15:31:52 - {
+    "handleSTKPush called with": {
+        "amount": 10,
+        "user_id": 3,
+        "bill_id": 9,
+        "phone": "254708374149"
+    }
+}
+
+2026-04-26 15:31:53 - {
+    "access_token_request": {
+        "url": "https:\/\/sandbox.safaricom.co.ke\/oauth\/v1\/generate?grant_type=client_credentials",
+        "http_code": 400,
+        "curl_error": ""
+    },
+    "response": null
+}
+
+2026-04-26 15:31:53 - {
+    "error": "Failed to get access token",
+    "response": ""
+}
+
+2026-04-26 15:37:41 - {
+    "endpoint": "stk_push",
+    "method": "POST",
+    "input": {
+        "phone": "254718219840",
+        "amount": 15,
+        "bill_id": 31,
+        "user_id": 20
+    }
+}
+
+2026-04-26 15:37:41 - {
+    "handleSTKPush called with": {
+        "phone": "254718219840",
+        "amount": 15,
+        "bill_id": 31,
+        "user_id": 20
+    }
+}
+
+2026-04-26 15:37:42 - {
+    "access_token_request": {
+        "url": "https:\/\/sandbox.safaricom.co.ke\/oauth\/v1\/generate?grant_type=client_credentials",
+        "http_code": 400,
+        "curl_error": ""
+    },
+    "response": null
+}
+
+2026-04-26 15:37:42 - {
+    "error": "Failed to get access token",
+    "response": ""
+}
+
+2026-04-26 15:37:57 - {
+    "endpoint": "stk_push",
+    "method": "POST",
+    "input": {
+        "amount": 10,
+        "user_id": 3,
+        "bill_id": 9,
+        "phone": "254708374149"
+    }
+}
+
+2026-04-26 15:37:57 - {
+    "handleSTKPush called with": {
+        "amount": 10,
+        "user_id": 3,
+        "bill_id": 9,
+        "phone": "254708374149"
+    }
+}
+
+2026-04-26 15:37:58 - {
+    "access_token_request": {
+        "url": "https:\/\/sandbox.safaricom.co.ke\/oauth\/v1\/generate?grant_type=client_credentials",
+        "http_code": 400,
+        "curl_error": ""
+    },
+    "response": null
+}
+
+2026-04-26 15:37:58 - {
+    "error": "Failed to get access token",
+    "response": ""
+}
+
+2026-04-26 15:40:07 - {
+    "endpoint": "test",
+    "method": "GET",
+    "input": null
+}
+
+2026-04-26 15:40:18 - {
+    "endpoint": "stk_push",
+    "method": "POST",
+    "input": {
+        "phone": "254718219840",
+        "amount": 15,
+        "bill_id": 31,
+        "user_id": 20
+    }
+}
+
+2026-04-26 15:40:18 - {
+    "handleSTKPush called with": {
+        "phone": "254718219840",
+        "amount": 15,
+        "bill_id": 31,
+        "user_id": 20
+    }
+}
+
+2026-04-26 15:40:19 - {
+    "access_token_request": {
+        "url": "https:\/\/sandbox.safaricom.co.ke\/oauth\/v1\/generate?grant_type=client_credentials",
+        "http_code": 400,
+        "curl_error": ""
+    },
+    "response": null
+}
+
+2026-04-26 15:40:19 - {
+    "error": "Failed to get access token",
+    "response": ""
+}
+
+2026-04-26 15:40:41 - {
+    "endpoint": "stk_push",
+    "method": "POST",
+    "input": {
+        "phone": "254718219840",
+        "amount": 15,
+        "bill_id": 31,
+        "user_id": 20
+    }
+}
+
+2026-04-26 15:40:41 - {
+    "handleSTKPush called with": {
+        "phone": "254718219840",
+        "amount": 15,
+        "bill_id": 31,
+        "user_id": 20
+    }
+}
+
+2026-04-26 15:40:42 - {
+    "access_token_request": {
+        "url": "https:\/\/sandbox.safaricom.co.ke\/oauth\/v1\/generate?grant_type=client_credentials",
+        "http_code": 400,
+        "curl_error": ""
+    },
+    "response": null
+}
+
+2026-04-26 15:40:42 - {
+    "error": "Failed to get access token",
+    "response": ""
+}
+
+2026-04-26 15:40:49 - {
+    "endpoint": "test",
+    "method": "GET",
+    "input": null
+}
+
+2026-04-26 15:43:55 - {
+    "endpoint": "callback",
+    "method": "POST",
+    "input": {
+        "Body": {
+            "stkCallback": {
+                "MerchantRequestID": "e55d-4519-86bb-379cf05dbfb414377",
+                "CheckoutRequestID": "ws_CO_26042026154330220708374149",
+                "ResultCode": 1037,
+                "ResultDesc": "No response from user."
+            }
+        }
+    }
+}
+
+2026-04-26 15:43:55 - {
+    "callback_received": {
+        "Body": {
+            "stkCallback": {
+                "MerchantRequestID": "e55d-4519-86bb-379cf05dbfb414377",
+                "CheckoutRequestID": "ws_CO_26042026154330220708374149",
+                "ResultCode": 1037,
+                "ResultDesc": "No response from user."
+            }
+        }
+    }
+}
+
+2026-04-26 15:47:26 - {
+    "endpoint": "stk_push",
+    "method": "POST",
+    "input": {
+        "amount": 10,
+        "user_id": 3,
+        "bill_id": 9,
+        "phone": "254708374149"
+    }
+}
+
+2026-04-26 15:47:26 - {
+    "handleSTKPush called with": {
+        "amount": 10,
+        "user_id": 3,
+        "bill_id": 9,
+        "phone": "254708374149"
+    }
+}
+
+2026-04-26 15:47:27 - {
+    "access_token_request": {
+        "url": "https:\/\/sandbox.safaricom.co.ke\/oauth\/v1\/generate?grant_type=client_credentials",
+        "http_code": 400,
+        "curl_error": ""
+    },
+    "response": null
+}
+
+2026-04-26 15:47:27 - {
+    "error": "Failed to get access token",
+    "response": ""
+}
+
+2026-04-26 15:47:28 - {
+    "endpoint": "callback",
+    "method": "POST",
+    "input": {
+        "Body": {
+            "stkCallback": {
+                "MerchantRequestID": "e55d-4519-86bb-379cf05dbfb414490",
+                "CheckoutRequestID": "ws_CO_26042026154714653708374149",
+                "ResultCode": 1032,
+                "ResultDesc": "Request Cancelled by user."
+            }
+        }
+    }
+}
+
+2026-04-26 15:47:28 - {
+    "callback_received": {
+        "Body": {
+            "stkCallback": {
+                "MerchantRequestID": "e55d-4519-86bb-379cf05dbfb414490",
+                "CheckoutRequestID": "ws_CO_26042026154714653708374149",
+                "ResultCode": 1032,
+                "ResultDesc": "Request Cancelled by user."
+            }
+        }
+    }
+}
+
+2026-04-26 15:47:58 - {
+    "endpoint": "stk_push",
+    "method": "POST",
+    "input": {
+        "phone": "254718219840",
+        "amount": 15,
+        "bill_id": 31,
+        "user_id": 20
+    }
+}
+
+2026-04-26 15:47:58 - {
+    "handleSTKPush called with": {
+        "phone": "254718219840",
+        "amount": 15,
+        "bill_id": 31,
+        "user_id": 20
+    }
+}
+
+2026-04-26 15:47:58 - {
+    "access_token_request": {
+        "url": "https:\/\/sandbox.safaricom.co.ke\/oauth\/v1\/generate?grant_type=client_credentials",
+        "http_code": 400,
+        "curl_error": ""
+    },
+    "response": null
+}
+
+2026-04-26 15:47:58 - {
+    "error": "Failed to get access token",
+    "response": ""
+}
+
+2026-04-26 15:48:20 - {
+    "endpoint": "stk_push",
+    "method": "POST",
+    "input": {
+        "phone": "254718219840",
+        "amount": 15,
+        "bill_id": 31,
+        "user_id": 20
+    }
+}
+
+2026-04-26 15:48:20 - {
+    "handleSTKPush called with": {
+        "phone": "254718219840",
+        "amount": 15,
+        "bill_id": 31,
+        "user_id": 20
+    }
+}
+
+2026-04-26 15:48:20 - {
+    "access_token_request": {
+        "url": "https:\/\/sandbox.safaricom.co.ke\/oauth\/v1\/generate?grant_type=client_credentials",
+        "http_code": 400,
+        "curl_error": ""
+    },
+    "response": null
+}
+
+2026-04-26 15:48:20 - {
+    "error": "Failed to get access token",
+    "response": ""
+}
+
+2026-04-26 15:48:46 - {
+    "endpoint": "stk_push",
+    "method": "POST",
+    "input": {
+        "amount": 10,
+        "user_id": 3,
+        "bill_id": 9,
+        "phone": "254708374149"
+    }
+}
+
+2026-04-26 15:48:46 - {
+    "handleSTKPush called with": {
+        "amount": 10,
+        "user_id": 3,
+        "bill_id": 9,
+        "phone": "254708374149"
+    }
+}
+
+2026-04-26 15:48:47 - {
+    "access_token_request": {
+        "url": "https:\/\/sandbox.safaricom.co.ke\/oauth\/v1\/generate?grant_type=client_credentials",
+        "http_code": 400,
+        "curl_error": ""
+    },
+    "response": null
+}
+
+2026-04-26 15:48:47 - {
+    "error": "Failed to get access token",
+    "response": ""
+}
+
+2026-04-26 15:50:26 - {
+    "endpoint": "stk_push",
+    "method": "POST",
+    "input": {
+        "phone": "254718219840",
+        "amount": 15,
+        "bill_id": 31,
+        "user_id": 20
+    }
+}
+
+2026-04-26 15:50:26 - {
+    "handleSTKPush called with": {
+        "phone": "254718219840",
+        "amount": 15,
+        "bill_id": 31,
+        "user_id": 20
+    }
+}
+
+2026-04-26 15:50:26 - {
+    "Auth Response": {
+        "http_code": 400,
+        "response": ""
+    }
+}
+
+2026-04-26 15:50:44 - {
+    "endpoint": "callback",
+    "method": "POST",
+    "input": {
+        "Body": {
+            "stkCallback": {
+                "MerchantRequestID": "e55d-4519-86bb-379cf05dbfb414556",
+                "CheckoutRequestID": "ws_CO_26042026155019722708374149",
+                "ResultCode": 1037,
+                "ResultDesc": "No response from user."
+            }
+        }
+    }
+}
+
+2026-04-26 15:50:44 - {
+    "callback_received": {
+        "Body": {
+            "stkCallback": {
+                "MerchantRequestID": "e55d-4519-86bb-379cf05dbfb414556",
+                "CheckoutRequestID": "ws_CO_26042026155019722708374149",
+                "ResultCode": 1037,
+                "ResultDesc": "No response from user."
+            }
+        }
+    }
+}
+
+2026-04-26 15:50:47 - {
+    "endpoint": "stk_push",
+    "method": "POST",
+    "input": {
+        "phone": "254718219840",
+        "amount": 15,
+        "bill_id": 31,
+        "user_id": 20
+    }
+}
+
+2026-04-26 15:50:47 - {
+    "handleSTKPush called with": {
+        "phone": "254718219840",
+        "amount": 15,
+        "bill_id": 31,
+        "user_id": 20
+    }
+}
+
+2026-04-26 15:50:48 - {
+    "Auth Response": {
+        "http_code": 400,
+        "response": ""
+    }
+}
+
+2026-04-26 15:52:29 - {
+    "endpoint": "stk_push",
+    "method": "POST",
+    "input": {
+        "amount": 10,
+        "user_id": 3,
+        "bill_id": 9,
+        "phone": "254708374149"
+    }
+}
+
+2026-04-26 15:52:29 - {
+    "handleSTKPush called with": {
+        "amount": 10,
+        "user_id": 3,
+        "bill_id": 9,
+        "phone": "254708374149"
+    }
+}
+
+2026-04-26 15:52:29 - {
+    "Auth Response": {
+        "http_code": 400,
+        "response": ""
+    }
+}
+
+2026-04-26 15:56:23 - {
+    "endpoint": "stk_push",
+    "method": "POST",
+    "input": {
+        "phone": "254718219840",
+        "amount": 15,
+        "bill_id": 31,
+        "user_id": 20
+    }
+}
+
+2026-04-26 15:56:23 - {
+    "handleSTKPush called with": {
+        "phone": "254718219840",
+        "amount": 15,
+        "bill_id": 31,
+        "user_id": 20
+    }
+}
+
+2026-04-26 15:56:24 - {
+    "Auth Response": {
+        "http_code": 400,
+        "response": ""
+    }
+}
+
+2026-04-26 15:56:46 - {
+    "endpoint": "stk_push",
+    "method": "POST",
+    "input": {
+        "phone": "254718219840",
+        "amount": 15,
+        "bill_id": 31,
+        "user_id": 20
+    }
+}
+
+2026-04-26 15:56:46 - {
+    "handleSTKPush called with": {
+        "phone": "254718219840",
+        "amount": 15,
+        "bill_id": 31,
+        "user_id": 20
+    }
+}
+
+2026-04-26 15:56:47 - {
+    "Auth Response": {
+        "http_code": 400,
+        "response": ""
+    }
+}
+
+2026-04-26 15:57:59 - {
+    "endpoint": "stk_push",
+    "method": "POST",
+    "input": {
+        "phone": "254718219840",
+        "amount": 15,
+        "bill_id": 31,
+        "user_id": 20
+    }
+}
+
+2026-04-26 15:57:59 - {
+    "handleSTKPush called with": {
+        "phone": "254718219840",
+        "amount": 15,
+        "bill_id": 31,
+        "user_id": 20
+    }
+}
+
+2026-04-26 15:58:00 - {
+    "Auth Response": {
+        "http_code": 400,
+        "response": ""
+    }
+}
+

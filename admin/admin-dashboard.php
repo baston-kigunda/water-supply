@@ -12,7 +12,6 @@ requireAdmin();
 
 // Get statistics for dashboard
 $stats = [];
-
 // Total users
 $result = $conn->query("SELECT COUNT(*) as total FROM users WHERE user_role = 'consumer'");
 $stats['total_users'] = $result->fetch_assoc()['total'];

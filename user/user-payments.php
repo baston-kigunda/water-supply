@@ -18,51 +18,167 @@ $user_id = $_SESSION['user_id'];
 $message = '';
 $error = '';
 
-// Handle payment submission
+// Function to get base URL dynamically
+function getBaseUrl() {
+    // Check if we're using ngrok
+    if (strpos($_SERVER['HTTP_HOST'], 'ngrok') !== false) {
+        return 'https://' . $_SERVER['HTTP_HOST'] . '/watersupply';
+    }
+    
+    // Check if we're on Heroku
+    if (isset($_SERVER['HTTP_HOST']) && $_SERVER['HTTP_HOST'] == 'darajambili.herokuapp.com') {
+        return 'https://darajambili.herokuapp.com';
+    }
+    
+    // Local development
+    $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http";
+    $host = $_SERVER['HTTP_HOST'];
+    return $protocol . "://" . $host . "/watersupply";
+}
+
+// Handle payment submission with M-Pesa integration
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['make_payment'])) {
     $bill_id = isset($_POST['bill_id']) ? (int) $_POST['bill_id'] : 0;
     $amount = isset($_POST['amount']) ? (float) $_POST['amount'] : 0;
     $payment_method = trim($_POST['payment_method'] ?? '');
+    $mpesa_number = trim($_POST['mpesa_number'] ?? '');
+    
     $allowed_payment_methods = ['mpesa', 'card', 'bank', 'cash'];
+    
+    // Get bill details with proper error handling
     $bill = getBillPaymentSummary($bill_id, $user_id);
     
     if (!$bill) {
         $error = "Invalid bill selected.";
     } elseif ($bill['bill_status'] == 'paid' || $bill['amount_due'] <= 0) {
-        $error = "This bill is already paid.";
+        $error = "This bill is already paid or has no outstanding balance.";
     } elseif ($amount <= 0) {
-        $error = "Invalid payment amount.";
+        $error = "Invalid payment amount. Please enter an amount greater than 0.";
     } elseif (!in_array($payment_method, $allowed_payment_methods, true)) {
         $error = "Please select a valid payment method.";
     } elseif ($amount > $bill['amount_due']) {
         $error = "Payment amount cannot exceed the remaining balance of " . formatCurrency($bill['amount_due']) . ".";
+    } elseif ($payment_method == 'mpesa' && empty($mpesa_number)) {
+        $error = "Please enter your M-Pesa phone number.";
     } else {
-        // Generate transaction code
-        $transaction_code = strtoupper(uniqid('TXN'));
         
-        // Record payment
-        $stmt = $conn->prepare("
-            INSERT INTO payments (bill_id, user_id, amount, payment_method, transaction_code, payment_status) 
-            VALUES (?, ?, ?, ?, ?, 'completed')
-        ");
-        $stmt->bind_param("iidss", $bill_id, $user_id, $amount, $payment_method, $transaction_code);
-        
-        if ($stmt->execute()) {
-            updateBillStatusFromPayments($bill_id);
-            $updated_bill = getBillPaymentSummary($bill_id, $user_id);
-            $remaining_balance = $updated_bill ? $updated_bill['amount_due'] : max(0, $bill['amount_due'] - $amount);
+        if ($payment_method == 'mpesa') {
+            // Clean phone number
+            $mpesa_number = preg_replace('/[^0-9]/', '', $mpesa_number);
+            if (substr($mpesa_number, 0, 1) == '0') {
+                $mpesa_number = '254' . substr($mpesa_number, 1);
+            } elseif (substr($mpesa_number, 0, 4) == '+254') {
+                $mpesa_number = '254' . substr($mpesa_number, 4);
+            }
             
-            // Create notification
-            createNotification(
-                $user_id,
-                "Payment Successful",
-                "Your payment of " . formatCurrency($amount) . " for bill #$bill_id has been received. Remaining balance: " . formatCurrency($remaining_balance) . ". Transaction code: $transaction_code",
-                'payment'
-            );
-            
-            $message = "Payment successful! Transaction code: $transaction_code";
+            // Validate phone number length
+            if (strlen($mpesa_number) != 12) {
+                $error = "Invalid phone number format. Please use a valid Kenyan phone number (e.g., 07XXXXXXXX or 254XXXXXXXXX).";
+            } else {
+                // Integrate with M-Pesa STK Push API
+                $mpesa_payload = [
+                    'phone' => $mpesa_number,
+                    'amount' => (int) $amount,
+                    'bill_id' => $bill_id,
+                    'user_id' => $user_id
+                ];
+                
+                // Call the STK Push API
+                $base_url = getBaseUrl();
+                $api_url = $base_url . "/api/api-payments.php?action=stk_push";
+                
+                // Log for debugging
+                error_log("Calling API: " . $api_url);
+                error_log("Payload: " . json_encode($mpesa_payload));
+                
+                // Use JSON payload for better compatibility with the API
+                $ch = curl_init($api_url);
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($mpesa_payload));
+                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    'Content-Type: application/json',
+                    'Accept: application/json'
+                ]);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+                
+                $response = curl_exec($ch);
+                $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                $curl_error = curl_error($ch);
+                curl_close($ch);
+                
+                error_log("HTTP Response Code: " . $http_code);
+                error_log("CURL Error: " . ($curl_error ?: 'None'));
+                error_log("Response: " . $response);
+                
+                if ($response === false) {
+                    $error = "Unable to connect to payment service. Please try again later.";
+                    error_log("cURL error: " . $curl_error);
+                } elseif ($http_code == 200) {
+                    $result = json_decode($response, true);
+                    
+                    if ($result && isset($result['success']) && $result['success'] === true) {
+                        // Store payment info in session for polling
+                        $_SESSION['pending_payment'] = [
+                            'reference' => $result['data']['reference'],
+                            'bill_id' => $bill_id,
+                            'amount' => $amount,
+                            'user_id' => $user_id,
+                            'checkout_request_id' => $result['data']['checkout_request_id'] ?? null,
+                            'timestamp' => time()
+                        ];
+                        
+                        // Redirect to payment status page
+                        header("Location: payment-status.php?reference=" . urlencode($result['data']['reference']) . "&bill_id=" . $bill_id);
+                        exit();
+                    } else {
+                        $error_message = $result['message'] ?? "Failed to initiate M-Pesa payment. Please try again.";
+                        $error = $error_message;
+                        
+                        // Log the error details
+                        error_log("M-Pesa API Error: " . json_encode($result));
+                    }
+                } else {
+                    $error = "Payment service is temporarily unavailable. Please try again later.";
+                    error_log("M-Pesa API error: HTTP $http_code - " . substr($response, 0, 500));
+                }
+            }
         } else {
-            $error = "Error processing payment: " . $conn->error;
+            // Handle other payment methods (card, bank, cash)
+            $transaction_code = 'TXN' . date('Ymd') . rand(100000, 999999);
+            
+            $stmt = $conn->prepare("
+                INSERT INTO payments (bill_id, user_id, amount, payment_method, transaction_code, payment_status, payment_date) 
+                VALUES (?, ?, ?, ?, ?, 'completed', NOW())
+            ");
+            $stmt->bind_param("iidss", $bill_id, $user_id, $amount, $payment_method, $transaction_code);
+            
+            if ($stmt->execute()) {
+                // Update bill status
+                if (function_exists('updateBillStatusFromPayments')) {
+                    updateBillStatusFromPayments($bill_id);
+                }
+                
+                $updated_bill = getBillPaymentSummary($bill_id, $user_id);
+                $remaining_balance = $updated_bill ? $updated_bill['amount_due'] : max(0, $bill['amount_due'] - $amount);
+                
+                if (function_exists('createNotification')) {
+                    createNotification(
+                        $user_id,
+                        "Payment Successful",
+                        "Your payment of " . formatCurrency($amount) . " for bill #$bill_id has been received. Remaining balance: " . formatCurrency($remaining_balance) . ". Transaction code: $transaction_code",
+                        'payment'
+                    );
+                }
+                
+                $message = "Payment successful! Transaction code: $transaction_code";
+                
+                // Refresh the page to show updated data
+                echo "<script>setTimeout(function() { window.location.reload(); }, 2000);</script>";
+            } else {
+                $error = "Error processing payment: " . $conn->error;
+            }
         }
     }
 }
@@ -101,15 +217,19 @@ while ($bill = $unpaid_bills_result->fetch_assoc()) {
     $unpaid_bills[] = $bill;
 }
 
-// Get payment history
-$payments = $conn->query("
+// Get payment history with proper error handling
+$payments_query = "
     SELECT p.*, b.billing_month, b.total_amount as bill_amount, sm.meter_number
     FROM payments p
     JOIN bills b ON p.bill_id = b.bill_id
     JOIN smart_meters sm ON b.meter_id = sm.meter_id
-    WHERE p.user_id = $user_id
+    WHERE p.user_id = ?
     ORDER BY p.payment_date DESC
-");
+";
+$stmt = $conn->prepare($payments_query);
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$payments = $stmt->get_result();
 
 // Calculate statistics
 $stats = [];
@@ -223,14 +343,14 @@ $page_title = "Payments";
 
                 <?php if ($message): ?>
                     <div class="alert alert-success alert-dismissible fade show" role="alert">
-                        <i class="bi bi-check-circle"></i> <?php echo $message; ?>
+                        <i class="bi bi-check-circle"></i> <?php echo htmlspecialchars($message); ?>
                         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
                 <?php endif; ?>
 
                 <?php if ($error): ?>
                     <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                        <i class="bi bi-exclamation-triangle"></i> <?php echo $error; ?>
+                        <i class="bi bi-exclamation-triangle"></i> <?php echo htmlspecialchars($error); ?>
                         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
                 <?php endif; ?>
@@ -238,7 +358,7 @@ $page_title = "Payments";
                 <!-- Statistics Cards -->
                 <div class="row mb-4">
                     <div class="col-md-3">
-                        <div class="card dashboard-card bg-primary text-white">
+                        <div class="card bg-primary text-white">
                             <div class="card-body">
                                 <h6>Total Payments</h6>
                                 <h3><?php echo formatCurrency($stats['total_paid']); ?></h3>
@@ -246,7 +366,7 @@ $page_title = "Payments";
                         </div>
                     </div>
                     <div class="col-md-3">
-                        <div class="card dashboard-card bg-success text-white">
+                        <div class="card bg-success text-white">
                             <div class="card-body">
                                 <h6>This Month</h6>
                                 <h3><?php echo formatCurrency($stats['month_paid']); ?></h3>
@@ -254,7 +374,7 @@ $page_title = "Payments";
                         </div>
                     </div>
                     <div class="col-md-3">
-                        <div class="card dashboard-card bg-warning text-white">
+                        <div class="card bg-warning text-white">
                             <div class="card-body">
                                 <h6>Bills To Pay</h6>
                                 <h3><?php echo $stats['bills_to_pay']; ?></h3>
@@ -262,7 +382,7 @@ $page_title = "Payments";
                         </div>
                     </div>
                     <div class="col-md-3">
-                        <div class="card dashboard-card bg-info text-white">
+                        <div class="card bg-info text-white">
                             <div class="card-body">
                                 <h6>Amount Due</h6>
                                 <h3><?php echo formatCurrency($stats['amount_due']); ?></h3>
@@ -282,7 +402,7 @@ $page_title = "Payments";
                 <div class="row">
                     <!-- Make Payment Form -->
                     <div class="col-md-5 mb-4">
-                        <div class="card dashboard-card">
+                        <div class="card">
                             <div class="card-header bg-success text-white">
                                 <h5 class="mb-0"><i class="bi bi-cash"></i> Make a Payment</h5>
                             </div>
@@ -321,7 +441,7 @@ $page_title = "Payments";
                                             <label for="payment_method" class="form-label">Payment Method</label>
                                             <select class="form-control" id="payment_method" name="payment_method" required>
                                                 <option value="">-- Select Method --</option>
-                                                <option value="mpesa">M-Pesa</option>
+                                                <option value="mpesa">M-Pesa (STK Push)</option>
                                                 <option value="card">Credit/Debit Card</option>
                                                 <option value="bank">Bank Transfer</option>
                                                 <option value="cash">Cash (Office)</option>
@@ -330,21 +450,17 @@ $page_title = "Payments";
                                         
                                         <div id="mpesa_details" style="display: none;" class="mb-3">
                                             <label for="mpesa_number" class="form-label">M-Pesa Phone Number</label>
-                                            <input type="text" class="form-control" id="mpesa_number" placeholder="07XXXXXXXX">
-                                            <small class="text-muted">You will receive an STK push prompt</small>
-                                        </div>
-                                        
-                                        <div id="card_details" style="display: none;" class="mb-3">
-                                            <p class="text-info">You will be redirected to secure payment gateway</p>
+                                            <input type="tel" class="form-control" id="mpesa_number" name="mpesa_number" placeholder="07XXXXXXXX">
+                                            <small class="text-muted">You will receive an STK push prompt on this number.</small>
                                         </div>
                                         
                                         <div class="alert alert-info" id="bill_info" style="display: none;">
                                             <strong>Meter:</strong> <span id="meter_number"></span><br>
                                             <strong>Status:</strong> <span id="bill_status"></span><br>
-                                            <strong>Bill Due Date:</strong> <span id="due_date"></span><br>
+                                            <strong>Due Date:</strong> <span id="due_date"></span><br>
                                             <strong>Original Bill:</strong> <span id="full_amount"></span><br>
                                             <strong>Already Paid:</strong> <span id="paid_amount"></span><br>
-                                            <strong>Remaining Balance:</strong> <span id="remaining_amount"></span>
+                                            <strong>Remaining:</strong> <span id="remaining_amount"></span>
                                         </div>
                                         
                                         <button type="submit" name="make_payment" class="btn btn-success w-100">
@@ -359,82 +475,18 @@ $page_title = "Payments";
                                 <?php endif; ?>
                             </div>
                         </div>
-
-                        <?php if (!empty($unpaid_bills)): ?>
-                            <div class="card dashboard-card mt-4">
-                                <div class="card-header bg-warning text-dark">
-                                    <h5 class="mb-0"><i class="bi bi-receipt-cutoff"></i> Bills Awaiting Payment</h5>
-                                </div>
-                                <div class="card-body">
-                                    <?php foreach ($unpaid_bills as $bill): ?>
-                                        <div class="border rounded p-3 mb-3">
-                                            <div class="d-flex justify-content-between align-items-start gap-3">
-                                                <div>
-                                                    <h6 class="mb-1">Bill #<?php echo $bill['bill_id']; ?></h6>
-                                                    <div class="text-muted small">
-                                                        <?php echo htmlspecialchars($bill['meter_number']); ?> •
-                                                        <?php echo date('F Y', strtotime($bill['billing_month'])); ?>
-                                                    </div>
-                                                </div>
-                                                <span class="badge bg-<?php echo $bill['bill_status'] === 'overdue' ? 'danger' : 'warning'; ?>">
-                                                    <?php echo ucfirst($bill['bill_status']); ?>
-                                                </span>
-                                            </div>
-
-                                            <div class="mt-3 small">
-                                                <div><strong>Due date:</strong> <?php echo date('M d, Y', strtotime($bill['due_date'])); ?></div>
-                                                <div><strong>Original bill:</strong> <?php echo formatCurrency($bill['total_amount']); ?></div>
-                                                <div><strong>Paid so far:</strong> <?php echo formatCurrency($bill['amount_paid']); ?></div>
-                                                <div><strong>Remaining:</strong> <?php echo formatCurrency($bill['amount_due']); ?></div>
-                                            </div>
-
-                                            <button type="button" class="btn btn-sm btn-outline-success mt-3" onclick="selectBillForPayment('<?php echo $bill['bill_id']; ?>')">
-                                                <i class="bi bi-cash"></i> Pay This Bill
-                                            </button>
-                                        </div>
-                                    <?php endforeach; ?>
-                                </div>
-                            </div>
-                        <?php endif; ?>
-                        
-                        <!-- Payment Methods Summary -->
-                        <?php if ($methods->num_rows > 0): ?>
-                            <div class="card dashboard-card mt-4">
-                                <div class="card-header">
-                                    <h5>Payment Methods Used</h5>
-                                </div>
-                                <div class="card-body">
-                                    <?php while ($method = $methods->fetch_assoc()): ?>
-                                        <div class="d-flex justify-content-between align-items-center mb-2">
-                                            <span>
-                                                <i class="bi bi-<?php 
-                                                    echo $method['payment_method'] == 'mpesa' ? 'phone' : 
-                                                        ($method['payment_method'] == 'card' ? 'credit-card' : 
-                                                        ($method['payment_method'] == 'bank' ? 'bank' : 'cash')); 
-                                                ?>"></i>
-                                                <?php echo strtoupper($method['payment_method']); ?>
-                                            </span>
-                                            <span>
-                                                <strong><?php echo $method['count']; ?></strong> payments |
-                                                <strong><?php echo formatCurrency($method['total']); ?></strong>
-                                            </span>
-                                        </div>
-                                    <?php endwhile; ?>
-                                </div>
-                            </div>
-                        <?php endif; ?>
                     </div>
 
                     <!-- Payment History -->
                     <div class="col-md-7 mb-4">
-                        <div class="card dashboard-card">
+                        <div class="card">
                             <div class="card-header bg-primary text-white">
                                 <h5 class="mb-0"><i class="bi bi-clock-history"></i> Payment History</h5>
                             </div>
                             <div class="card-body">
-                                <?php if ($payments->num_rows > 0): ?>
+                                <?php if ($payments && $payments->num_rows > 0): ?>
                                     <div class="table-responsive">
-                                        <table id="paymentsTable" class="table table-striped table-hover">
+                                        <table id="paymentsTable" class="table table-striped">
                                             <thead>
                                                 <tr>
                                                     <th>Date</th>
@@ -453,14 +505,8 @@ $page_title = "Payments";
                                                         <td>#<?php echo $payment['bill_id']; ?></td>
                                                         <td><?php echo date('M Y', strtotime($payment['billing_month'])); ?></td>
                                                         <td><strong><?php echo formatCurrency($payment['amount']); ?></strong></td>
-                                                        <td>
-                                                            <span class="badge bg-info">
-                                                                <?php echo strtoupper($payment['payment_method']); ?>
-                                                            </span>
-                                                        </td>
-                                                        <td>
-                                                            <small><?php echo $payment['transaction_code']; ?></small>
-                                                        </td>
+                                                        <td><?php echo strtoupper($payment['payment_method']); ?></td>
+                                                        <td><small><?php echo htmlspecialchars($payment['transaction_code']); ?></small></td>
                                                         <td>
                                                             <span class="badge bg-<?php 
                                                                 echo $payment['payment_status'] == 'completed' ? 'success' : 
@@ -476,7 +522,6 @@ $page_title = "Payments";
                                     </div>
                                 <?php else: ?>
                                     <div class="alert alert-info">
-                                        <i class="bi bi-info-circle"></i>
                                         No payment history found.
                                     </div>
                                 <?php endif; ?>
@@ -495,7 +540,8 @@ $page_title = "Payments";
 
         function updateBillAmount() {
             var select = document.getElementById('bill_id');
-            if (!select || select.selectedIndex < 0) {
+            if (!select || select.selectedIndex <= 0) {
+                document.getElementById('bill_info').style.display = 'none';
                 return;
             }
 
@@ -516,14 +562,13 @@ $page_title = "Payments";
                 document.getElementById('bill_status').innerHTML = status ? status.charAt(0).toUpperCase() + status.slice(1) : '';
                 document.getElementById('due_date').innerHTML = new Date(dueDate).toLocaleDateString();
                 document.getElementById('bill_info').style.display = 'block';
-            } else {
-                document.getElementById('bill_info').style.display = 'none';
             }
         }
 
         function validatePayment() {
             var amount = parseFloat(document.getElementById('amount').value || '0');
             var select = document.getElementById('bill_id');
+            var paymentMethod = document.getElementById('payment_method').value;
 
             if (!select || !select.value) {
                 alert('Please select a bill to pay');
@@ -533,8 +578,8 @@ $page_title = "Payments";
             var option = select.options[select.selectedIndex];
             var amountDue = parseFloat(option.getAttribute('data-amount-due') || '0');
 
-            if (amount <= 0) {
-                alert('Please enter a valid amount');
+            if (isNaN(amount) || amount <= 0) {
+                alert('Please enter a valid amount greater than 0');
                 return false;
             }
 
@@ -543,58 +588,59 @@ $page_title = "Payments";
                 return false;
             }
 
-            return confirm('Confirm payment of <?php echo CURRENCY; ?> ' + amount.toFixed(2) + '?');
+            if (!paymentMethod) {
+                alert('Please select a payment method');
+                return false;
+            }
+
+            if (paymentMethod === 'mpesa') {
+                var mpesaNumber = document.getElementById('mpesa_number').value;
+                if (!mpesaNumber) {
+                    alert('Please enter your M-Pesa phone number');
+                    return false;
+                }
+                
+                var phoneRegex = /^(07|01|\+254|254)\d{8}$/;
+                if (!phoneRegex.test(mpesaNumber)) {
+                    alert('Please enter a valid Kenyan phone number');
+                    return false;
+                }
+                
+                return confirm('You will receive an STK push prompt on ' + mpesaNumber + '.\n\nConfirm payment of ' + formatCurrencyValue(amount) + '?');
+            }
+
+            return confirm('Confirm payment of ' + formatCurrencyValue(amount) + '?');
         }
 
         function selectBillForPayment(billId) {
             var select = document.getElementById('bill_id');
-            if (!select) {
-                return;
-            }
-
-            for (var i = 0; i < select.options.length; i++) {
-                if (select.options[i].value === billId) {
-                    select.selectedIndex = i;
-                    updateBillAmount();
-                    select.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    break;
-                }
-            }
-        }
-
-        var paymentMethod = document.getElementById('payment_method');
-        if (paymentMethod) {
-            paymentMethod.addEventListener('change', function() {
-                var method = this.value;
-                document.getElementById('mpesa_details').style.display = method === 'mpesa' ? 'block' : 'none';
-                document.getElementById('card_details').style.display = method === 'card' ? 'block' : 'none';
-            });
-        }
-
-        window.addEventListener('load', function() {
-            var billId = '<?php echo $_GET['bill_id'] ?? ''; ?>';
-            var select = document.getElementById('bill_id');
-
-            if (!select) {
-                return;
-            }
-
-            if (billId) {
+            if (select) {
                 for (var i = 0; i < select.options.length; i++) {
                     if (select.options[i].value === billId) {
                         select.selectedIndex = i;
                         updateBillAmount();
-                        return;
+                        break;
                     }
                 }
             }
-        });
+        }
+
+        // Initialize event listeners
+        var paymentMethod = document.getElementById('payment_method');
+        if (paymentMethod) {
+            paymentMethod.addEventListener('change', function() {
+                var mpesaDetails = document.getElementById('mpesa_details');
+                if (mpesaDetails) {
+                    mpesaDetails.style.display = this.value === 'mpesa' ? 'block' : 'none';
+                }
+            });
+        }
     </script>
 
     <?php include '../includes/footer.php'; ?>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
-    <script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
     <script>
         $(document).ready(function() {
             $('#paymentsTable').DataTable({
