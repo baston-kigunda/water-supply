@@ -64,3 +64,35 @@ if (session_status() == PHP_SESSION_NONE) {
             </div>
         </div>
     </nav>
+    <?php if (isset($_SESSION['user_id']) && defined('IOT_SIMULATION_ENABLED') && IOT_SIMULATION_ENABLED): ?>
+        <script>
+            (function () {
+                const simulationEndpoint = <?php echo json_encode(rtrim(SITE_URL, '/') . '/api/api-simulator.php'); ?>;
+                const intervalMs = <?php echo (int) IOT_SIMULATION_INTERVAL_SECONDS * 1000; ?>;
+                let requestInFlight = false;
+
+                function pingMeterSimulation() {
+                    if (document.visibilityState === 'hidden' || requestInFlight) {
+                        return;
+                    }
+
+                    requestInFlight = true;
+                    fetch(simulationEndpoint, {
+                        method: 'GET',
+                        credentials: 'same-origin',
+                        cache: 'no-store',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    }).catch(function () {
+                        return null;
+                    }).finally(function () {
+                        requestInFlight = false;
+                    });
+                }
+
+                window.setTimeout(pingMeterSimulation, 1500);
+                window.setInterval(pingMeterSimulation, intervalMs);
+            })();
+        </script>
+    <?php endif; ?>

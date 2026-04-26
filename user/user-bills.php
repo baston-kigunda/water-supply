@@ -15,6 +15,12 @@ if (isAdmin()) {
 }
 
 $user_id = $_SESSION['user_id'];
+$assigned_meter_result = $conn->query("
+    SELECT COUNT(*) as count
+    FROM smart_meters
+    WHERE user_id = $user_id
+");
+$has_assigned_meters = ((int) $assigned_meter_result->fetch_assoc()['count']) > 0;
 
 // Handle bill payment redirect
 if (isset($_GET['pay'])) {
@@ -163,6 +169,11 @@ $page_title = "My Bills";
                             <i class="bi bi-cash"></i> Make Payment
                         </a>
                     </div>
+                </div>
+
+                <div class="alert alert-info">
+                    <i class="bi bi-arrow-repeat"></i>
+                    Bills on this page refresh automatically after a meter is assigned and as new simulated water usage is recorded.
                 </div>
 
                 <!-- Summary Cards -->
@@ -357,6 +368,16 @@ $page_title = "My Bills";
                 pageLength: 25
             });
         });
+
+        (function () {
+            const refreshMs = <?php echo $has_assigned_meters ? ((int) IOT_SIMULATION_INTERVAL_SECONDS * 1000) + 5000 : 15000; ?>;
+
+            window.setInterval(function () {
+                if (document.visibilityState === 'visible') {
+                    window.location.reload();
+                }
+            }, refreshMs);
+        })();
 
         function viewBill(bill_id) {
             $('#billModal').modal('show');

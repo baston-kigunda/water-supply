@@ -1,7 +1,7 @@
 <?php
 // ========================================
-// FILE: user-consumption.php
-// PURPOSE: View detailed water consumption history
+// FILE: user-dashboard.php
+// PURPOSE: User dashboard with water consumption analytics
 // ========================================
 
 require_once '../includes/functions.php';
@@ -15,22 +15,22 @@ if (isAdmin()) {
 
 $user_id = $_SESSION['user_id'];
 
-// Get user's meters with prepared statement (FIXED SQL INJECTION)
+// Get user's meters with prepared statement
 $stmt = $conn->prepare("
-    SELECT meter_id, meter_number, location 
-    FROM smart_meters 
+    SELECT meter_id, meter_number, location
+    FROM smart_meters
     WHERE user_id = ?
 ");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $meters = $stmt->get_result();
+$has_assigned_meters = $meters->num_rows > 0;
 
 // Validate and sanitize selected meter
 $selected_meter = 0;
 if (isset($_GET['meter_id']) && is_numeric($_GET['meter_id'])) {
-    $selected_meter = (int)$_GET['meter_id'];
-    
-    // Verify meter belongs to user (security check)
+    $selected_meter = (int) $_GET['meter_id'];
+
     $verify_stmt = $conn->prepare("SELECT meter_id FROM smart_meters WHERE meter_id = ? AND user_id = ?");
     $verify_stmt->bind_param("ii", $selected_meter, $user_id);
     $verify_stmt->execute();
@@ -43,13 +43,67 @@ if (isset($_GET['meter_id']) && is_numeric($_GET['meter_id'])) {
 if ($selected_meter === 0 && $meters->num_rows > 0) {
     $first_meter = $meters->fetch_assoc();
     $selected_meter = $first_meter['meter_id'];
-    $meters->data_seek(0); // Reset pointer
+    $meters->data_seek(0);
 }
+
+$selected_meter_details = null;
+if ($selected_meter) {
+    $selected_meter_stmt = $conn->prepare("
+        SELECT meter_number, location
+        FROM smart_meters
+        WHERE meter_id = ? AND user_id = ?
+        LIMIT 1
+    ");
+    $selected_meter_stmt->bind_param("ii", $selected_meter, $user_id);
+    $selected_meter_stmt->execute();
+    $selected_meter_details = $selected_meter_stmt->get_result()->fetch_assoc() ?: null;
+}
+
+$selected_meter_number = $selected_meter_details['meter_number'] ?? 'Assigned Meter';
+$selected_meter_location = $selected_meter_details['location'] ?? '';
+
+$billing_stats = [
+    'total_billed' => 0,
+    'total_paid' => 0,
+    'outstanding' => 0,
+    'pending_count' => 0
+];
+
+$result = $conn->query("
+    SELECT COALESCE(SUM(total_amount), 0) as total
+    FROM bills
+    WHERE user_id = $user_id
+");
+$billing_stats['total_billed'] = (float) $result->fetch_assoc()['total'];
+
+$result = $conn->query("
+    SELECT COALESCE(SUM(amount), 0) as total
+    FROM payments
+    WHERE user_id = $user_id AND payment_status = 'completed'
+");
+$billing_stats['total_paid'] = (float) $result->fetch_assoc()['total'];
+$billing_stats['outstanding'] = $billing_stats['total_billed'] - $billing_stats['total_paid'];
+
+$result = $conn->query("
+    SELECT COUNT(*) as count
+    FROM bills
+    WHERE user_id = $user_id AND bill_status IN ('pending', 'overdue')
+");
+$billing_stats['pending_count'] = (int) $result->fetch_assoc()['count'];
+
+$result = $conn->query("
+    SELECT bill_id, total_amount, bill_status, due_date
+    FROM bills
+    WHERE user_id = $user_id
+    ORDER BY bill_id DESC
+    LIMIT 1
+");
+$latest_bill = $result->fetch_assoc();
 
 // Validate and sanitize period
 $valid_periods = ['week', 'month', 'quarter', 'year'];
-$period = isset($_GET['period']) && in_array($_GET['period'], $valid_periods) 
-    ? $_GET['period'] 
+$period = isset($_GET['period']) && in_array($_GET['period'], $valid_periods, true)
+    ? $_GET['period']
     : 'month';
 
 // Get date range based on period
@@ -83,93 +137,49 @@ $chart_labels = [];
 $total_consumption = 0;
 $avg_daily = 0;
 $peak_day = ['date' => 'N/A', 'value' => 0];
-$details_result = null;
+$details_rows = [];
+$hourly_data = array_fill(0, 24, 0);
+$days = max(1, (strtotime($end_date) - strtotime($start_date)) / 86400);
 
 // Get consumption data if meter selected
 if ($selected_meter) {
-    // Main consumption query with proper binding (FIXED BIND_PARAM ERROR)
-    $stmt = $conn->prepare("
-        SELECT 
-            $group_by as period,
-            MAX(reading_value) - MIN(reading_value) as consumption,
-            COUNT(*) as readings_count,
-            MIN(reading_time) as first_reading,
-            MAX(reading_time) as last_reading
-        FROM meter_readings
-        WHERE meter_id = ? AND reading_time BETWEEN ? AND ?
-        GROUP BY period
-        HAVING consumption > 0
-        ORDER BY period
-    ");
-    
-    // FIX: Create variables first, then bind them
     $start_datetime = $start_date . ' 00:00:00';
     $end_datetime = $end_date . ' 23:59:59';
-    $stmt->bind_param("iss", $selected_meter, $start_datetime, $end_datetime);
-    
-    $stmt->execute();
-    $result = $stmt->get_result();
-    
-    while ($row = $result->fetch_assoc()) {
+    $details_rows = getGroupedConsumptionData($selected_meter, $start_datetime, $end_datetime, $group_by);
+
+    foreach ($details_rows as $row) {
         $consumption = $row['consumption'] ?? 0;
         $consumption_data[] = $consumption;
         $total_consumption += $consumption;
-        
-        // Format labels based on period
-        if ($display_format == 'daily') {
+
+        if ($display_format === 'daily') {
             $chart_labels[] = date('M d', strtotime($row['period']));
             $formatted_date = date('M d, Y', strtotime($row['period']));
         } else {
             $chart_labels[] = date('M Y', strtotime($row['period'] . '-01'));
             $formatted_date = date('F Y', strtotime($row['period'] . '-01'));
         }
-        
+
         if ($consumption > $peak_day['value']) {
             $peak_day['date'] = $formatted_date;
             $peak_day['value'] = $consumption;
         }
     }
-    
-    // Calculate averages
-    $days = max(1, (strtotime($end_date) - strtotime($start_date)) / 86400);
+
     $avg_daily = round($total_consumption / $days, 2);
-    
-    // Get hourly patterns (last 7 days for better average)
-    $hourly_data = array_fill(0, 24, 0);
-    $hourly_counts = array_fill(0, 24, 0);
-    
-    $hourly_stmt = $conn->prepare("
-        SELECT 
-            HOUR(reading_time) as hour,
-            reading_value
-        FROM meter_readings
-        WHERE meter_id = ? 
-            AND reading_time >= NOW() - INTERVAL 7 DAY
-        ORDER BY reading_time DESC
-        LIMIT 1000
-    ");
-    $hourly_stmt->bind_param("i", $selected_meter);
-    $hourly_stmt->execute();
-    $hourly_result = $hourly_stmt->get_result();
-    
-    // Calculate average by hour
-    while ($row = $hourly_result->fetch_assoc()) {
-        $hour = (int)$row['hour'];
-        $hourly_counts[$hour]++;
-        $hourly_data[$hour] += $row['reading_value'];
-    }
-    
-    // Calculate averages
-    for ($i = 0; $i < 24; $i++) {
-        if ($hourly_counts[$i] > 0) {
-            $hourly_data[$i] = round($hourly_data[$i] / $hourly_counts[$i], 2);
-        }
-    }
-    
-    // Get detailed data for table (re-execute the main query)
-    $stmt->execute();
-    $details_result = $stmt->get_result();
+
+    $hourly_start = date('Y-m-d H:i:s', strtotime('-7 days'));
+    $hourly_end = date('Y-m-d H:i:s');
+    $hourly_data = getHourlyConsumptionPattern($selected_meter, $hourly_start, $hourly_end, true);
 }
+
+$consumption_chart_data = array_map(function ($volume) {
+    return round(cubicMetersToCubicCentimeters($volume), 2);
+}, $consumption_data);
+
+$hourly_chart_data = array_map(function ($volume) {
+    return round(cubicMetersToCubicCentimeters($volume), 2);
+}, $hourly_data);
 
 $page_title = "Water Consumption";
 ?>
@@ -227,7 +237,7 @@ $page_title = "Water Consumption";
 </head>
 <body>
     <?php include '../includes/header.php'; ?>
-    
+
     <div class="container-fluid">
         <div class="row">
             <!-- Sidebar -->
@@ -272,13 +282,25 @@ $page_title = "Water Consumption";
                     </ul>
                 </div>
             </nav>
-            
+
             <!-- Main content -->
             <main class="col-md-10 ms-sm-auto px-md-4">
                 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
                     <h1 class="h2">Water Consumption Analytics</h1>
                 </div>
-                
+
+                <?php if ($selected_meter_details): ?>
+                    <div class="alert alert-secondary d-flex justify-content-between flex-wrap gap-2">
+                        <span>
+                            <i class="bi bi-speedometer2"></i>
+                            Showing consumption for meter <strong><?php echo htmlspecialchars($selected_meter_number); ?></strong>
+                        </span>
+                        <?php if ($selected_meter_location !== ''): ?>
+                            <span class="text-muted">Location: <?php echo htmlspecialchars($selected_meter_location); ?></span>
+                        <?php endif; ?>
+                    </div>
+                <?php endif; ?>
+
                 <!-- Filters -->
                 <div class="card dashboard-card mb-4">
                     <div class="card-body">
@@ -289,9 +311,8 @@ $page_title = "Water Consumption";
                                     <option value="">Choose a meter...</option>
                                     <?php if ($meters->num_rows > 0): ?>
                                         <?php while ($meter = $meters->fetch_assoc()): ?>
-                                            <option value="<?php echo $meter['meter_id']; ?>" 
-                                                <?php echo $meter['meter_id'] == $selected_meter ? 'selected' : ''; ?>>
-                                                <?php echo htmlspecialchars($meter['meter_number']); ?> - 
+                                            <option value="<?php echo $meter['meter_id']; ?>" <?php echo $meter['meter_id'] == $selected_meter ? 'selected' : ''; ?>>
+                                                <?php echo htmlspecialchars($meter['meter_number']); ?> -
                                                 <?php echo htmlspecialchars($meter['location']); ?>
                                             </option>
                                         <?php endwhile; ?>
@@ -301,10 +322,10 @@ $page_title = "Water Consumption";
                             <div class="col-md-4">
                                 <label for="period" class="form-label">Time Period</label>
                                 <select class="form-control" id="period" name="period">
-                                    <option value="week" <?php echo $period == 'week' ? 'selected' : ''; ?>>Last 7 Days</option>
-                                    <option value="month" <?php echo $period == 'month' ? 'selected' : ''; ?>>Last 30 Days</option>
-                                    <option value="quarter" <?php echo $period == 'quarter' ? 'selected' : ''; ?>>Last 3 Months</option>
-                                    <option value="year" <?php echo $period == 'year' ? 'selected' : ''; ?>>Last Year</option>
+                                    <option value="week" <?php echo $period === 'week' ? 'selected' : ''; ?>>Last 7 Days</option>
+                                    <option value="month" <?php echo $period === 'month' ? 'selected' : ''; ?>>Last 30 Days</option>
+                                    <option value="quarter" <?php echo $period === 'quarter' ? 'selected' : ''; ?>>Last 3 Months</option>
+                                    <option value="year" <?php echo $period === 'year' ? 'selected' : ''; ?>>Last Year</option>
                                 </select>
                             </div>
                             <div class="col-md-4">
@@ -316,22 +337,73 @@ $page_title = "Water Consumption";
                         </form>
                     </div>
                 </div>
-                
+
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    Consumption values and graphs on this page are displayed in <code>cm^3</code>. Billing still uses <code>m^3</code>. This page checks for new assigned meters and updated bill totals automatically.
+                </div>
+
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card dashboard-card bg-primary text-white">
+                            <div class="card-body">
+                                <h6>Total Billed</h6>
+                                <h3><?php echo formatCurrency($billing_stats['total_billed']); ?></h3>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card dashboard-card bg-success text-white">
+                            <div class="card-body">
+                                <h6>Total Paid</h6>
+                                <h3><?php echo formatCurrency($billing_stats['total_paid']); ?></h3>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card dashboard-card bg-warning text-white">
+                            <div class="card-body">
+                                <h6>Outstanding</h6>
+                                <h3><?php echo formatCurrency($billing_stats['outstanding']); ?></h3>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card dashboard-card bg-info text-white">
+                            <div class="card-body">
+                                <h6>Pending Bills</h6>
+                                <h3><?php echo $billing_stats['pending_count']; ?></h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <?php if ($latest_bill): ?>
+                    <div class="alert alert-light border mb-4">
+                        <i class="bi bi-receipt"></i>
+                        Latest bill: <strong>#<?php echo $latest_bill['bill_id']; ?></strong>,
+                        <?php echo formatCurrency($latest_bill['total_amount']); ?>,
+                        status <strong><?php echo ucfirst($latest_bill['bill_status']); ?></strong>,
+                        due <?php echo date('M d, Y', strtotime($latest_bill['due_date'])); ?>.
+                        <a href="user-bills.php" class="alert-link">View all bills</a>
+                    </div>
+                <?php endif; ?>
+
                 <?php if ($meters->num_rows == 0): ?>
                     <div class="alert alert-warning">
                         <i class="bi bi-exclamation-triangle"></i>
                         You don't have any smart meters assigned yet. Please contact administrator.
                     </div>
-                    
+
                 <?php elseif ($selected_meter && !empty($consumption_data)): ?>
-                    
+
                     <!-- Summary Cards -->
                     <div class="row mb-4">
                         <div class="col-md-3">
                             <div class="card dashboard-card bg-primary text-white">
                                 <div class="card-body">
                                     <h6>Total Consumption</h6>
-                                    <h3><?php echo number_format($total_consumption, 2); ?> m³</h3>
+                                    <h3><?php echo formatVolumeInCubicCentimeters($total_consumption); ?></h3>
                                     <small><?php echo date('M d', strtotime($start_date)); ?> - <?php echo date('M d, Y'); ?></small>
                                 </div>
                             </div>
@@ -340,7 +412,7 @@ $page_title = "Water Consumption";
                             <div class="card dashboard-card bg-success text-white">
                                 <div class="card-body">
                                     <h6>Average Daily</h6>
-                                    <h3><?php echo number_format($avg_daily, 2); ?> m³</h3>
+                                    <h3><?php echo formatVolumeInCubicCentimeters($avg_daily); ?></h3>
                                     <small>Over <?php echo round($days); ?> days</small>
                                 </div>
                             </div>
@@ -349,7 +421,7 @@ $page_title = "Water Consumption";
                             <div class="card dashboard-card bg-warning text-white">
                                 <div class="card-body">
                                     <h6>Peak Period</h6>
-                                    <h3><?php echo number_format($peak_day['value'], 2); ?> m³</h3>
+                                    <h3><?php echo formatVolumeInCubicCentimeters($peak_day['value']); ?></h3>
                                     <small><?php echo $peak_day['date']; ?></small>
                                 </div>
                             </div>
@@ -359,16 +431,16 @@ $page_title = "Water Consumption";
                                 <div class="card-body">
                                     <h6>Est. Cost</h6>
                                     <h3><?php echo formatCurrency($total_consumption * WATER_RATE_PER_UNIT); ?></h3>
-                                    <small>@ <?php echo formatCurrency(WATER_RATE_PER_UNIT); ?>/m³</small>
+                                    <small>@ <?php echo formatCurrency(WATER_RATE_PER_UNIT); ?>/m^3</small>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    
+
                     <!-- Consumption Chart -->
                     <div class="card dashboard-card mb-4">
                         <div class="card-header">
-                            <h5>Consumption Over Time</h5>
+                            <h5>Consumption Over Time - Meter <?php echo htmlspecialchars($selected_meter_number); ?></h5>
                         </div>
                         <div class="card-body">
                             <div class="chart-container" style="height: 400px;">
@@ -376,11 +448,11 @@ $page_title = "Water Consumption";
                             </div>
                         </div>
                     </div>
-                    
+
                     <!-- Hourly Pattern Chart -->
                     <div class="card dashboard-card mb-4">
                         <div class="card-header">
-                            <h5>Average Hourly Consumption Pattern (7 Days)</h5>
+                            <h5>Average Hourly Consumption Pattern (7 Days) - Meter <?php echo htmlspecialchars($selected_meter_number); ?></h5>
                         </div>
                         <div class="card-body">
                             <div class="chart-container" style="height: 300px;">
@@ -388,11 +460,11 @@ $page_title = "Water Consumption";
                             </div>
                         </div>
                     </div>
-                    
+
                     <!-- Detailed Table -->
                     <div class="card dashboard-card mb-4">
                         <div class="card-header">
-                            <h5>Detailed Consumption Data</h5>
+                            <h5>Detailed Consumption Data - Meter <?php echo htmlspecialchars($selected_meter_number); ?></h5>
                         </div>
                         <div class="card-body">
                             <div class="table-responsive">
@@ -400,7 +472,7 @@ $page_title = "Water Consumption";
                                     <thead>
                                         <tr>
                                             <th>Period</th>
-                                            <th class="text-end">Consumption (m³)</th>
+                                            <th class="text-end">Consumption (cm^3)</th>
                                             <th class="text-end">Estimated Cost</th>
                                             <th class="text-center">Readings</th>
                                             <th>First Reading</th>
@@ -408,12 +480,12 @@ $page_title = "Water Consumption";
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        <?php if ($details_result && $details_result->num_rows > 0): ?>
-                                            <?php while ($row = $details_result->fetch_assoc()): ?>
+                                        <?php if (!empty($details_rows)): ?>
+                                            <?php foreach ($details_rows as $row): ?>
                                                 <tr>
                                                     <td>
                                                         <?php
-                                                        if ($display_format == 'daily') {
+                                                        if ($display_format === 'daily') {
                                                             echo date('M d, Y', strtotime($row['period']));
                                                         } else {
                                                             echo date('F Y', strtotime($row['period'] . '-01'));
@@ -421,7 +493,7 @@ $page_title = "Water Consumption";
                                                         ?>
                                                     </td>
                                                     <td class="text-end">
-                                                        <strong><?php echo number_format($row['consumption'] ?? 0, 2); ?></strong>
+                                                        <strong><?php echo number_format(cubicMetersToCubicCentimeters($row['consumption'] ?? 0), 0); ?></strong>
                                                     </td>
                                                     <td class="text-end">
                                                         <?php echo formatCurrency(($row['consumption'] ?? 0) * WATER_RATE_PER_UNIT); ?>
@@ -430,7 +502,7 @@ $page_title = "Water Consumption";
                                                     <td><?php echo date('M d, H:i', strtotime($row['first_reading'])); ?></td>
                                                     <td><?php echo date('M d, H:i', strtotime($row['last_reading'])); ?></td>
                                                 </tr>
-                                            <?php endwhile; ?>
+                                            <?php endforeach; ?>
                                         <?php else: ?>
                                             <tr>
                                                 <td colspan="6" class="text-center">No detailed data available</td>
@@ -441,20 +513,27 @@ $page_title = "Water Consumption";
                             </div>
                         </div>
                     </div>
-                    
+
                 <?php elseif ($selected_meter): ?>
                     <div class="alert alert-info">
                         <i class="bi bi-info-circle"></i>
-                        No consumption data available for the selected period. 
+                        No consumption data available for meter <strong><?php echo htmlspecialchars($selected_meter_number); ?></strong> in the selected period.
                         <a href="?meter_id=<?php echo $selected_meter; ?>&period=month" class="alert-link">Try last 30 days</a>
                     </div>
                 <?php endif; ?>
             </main>
         </div>
     </div>
-    
+
     <?php if ($selected_meter && !empty($consumption_data)): ?>
     <script>
+        const selectedMeterNumber = <?php echo json_encode($selected_meter_number); ?>;
+
+        const formatVolume = (value) => Number(value).toLocaleString(undefined, {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 2
+        });
+
         // Consumption Chart
         const ctx = document.getElementById('consumptionChart').getContext('2d');
         new Chart(ctx, {
@@ -462,8 +541,8 @@ $page_title = "Water Consumption";
             data: {
                 labels: <?php echo json_encode($chart_labels); ?>,
                 datasets: [{
-                    label: 'Water Consumption (m³)',
-                    data: <?php echo json_encode($consumption_data); ?>,
+                    label: `Water Consumption - Meter ${selectedMeterNumber} (cm^3)`,
+                    data: <?php echo json_encode($consumption_chart_data); ?>,
                     borderColor: 'rgb(75, 192, 192)',
                     backgroundColor: 'rgba(75, 192, 192, 0.2)',
                     tension: 0.1,
@@ -482,10 +561,14 @@ $page_title = "Water Consumption";
                     legend: {
                         display: false
                     },
+                    title: {
+                        display: true,
+                        text: `Meter ${selectedMeterNumber}`
+                    },
                     tooltip: {
                         callbacks: {
                             label: function(context) {
-                                return `Consumption: ${context.raw.toFixed(2)} m³`;
+                                return `Consumption: ${formatVolume(context.raw)} cm^3`;
                             }
                         }
                     }
@@ -495,7 +578,7 @@ $page_title = "Water Consumption";
                         beginAtZero: true,
                         title: {
                             display: true,
-                            text: 'Cubic Meters (m³)'
+                            text: 'Cubic Centimeters (cm^3)'
                         },
                         grid: {
                             color: 'rgba(0, 0, 0, 0.05)'
@@ -509,23 +592,23 @@ $page_title = "Water Consumption";
                 }
             }
         });
-        
+
         // Hourly Pattern Chart
         const hourlyCtx = document.getElementById('hourlyChart').getContext('2d');
         const hourlyLabels = [];
         const hourlyValues = [];
-        
+
         <?php for ($i = 0; $i < 24; $i++): ?>
             hourlyLabels.push('<?php echo sprintf("%02d:00", $i); ?>');
-            hourlyValues.push(<?php echo $hourly_data[$i] ?? 0; ?>);
+            hourlyValues.push(<?php echo $hourly_chart_data[$i] ?? 0; ?>);
         <?php endfor; ?>
-        
+
         new Chart(hourlyCtx, {
             type: 'bar',
             data: {
                 labels: hourlyLabels,
                 datasets: [{
-                    label: 'Average Consumption (m³)',
+                    label: `Average Consumption - Meter ${selectedMeterNumber} (cm^3)`,
                     data: hourlyValues,
                     backgroundColor: 'rgba(153, 102, 255, 0.7)',
                     borderColor: 'rgb(153, 102, 255)',
@@ -540,10 +623,14 @@ $page_title = "Water Consumption";
                     legend: {
                         display: false
                     },
+                    title: {
+                        display: true,
+                        text: `Meter ${selectedMeterNumber}`
+                    },
                     tooltip: {
                         callbacks: {
                             label: function(context) {
-                                return `Avg: ${context.raw.toFixed(2)} m³`;
+                                return `Avg: ${formatVolume(context.raw)} cm^3`;
                             }
                         }
                     }
@@ -553,7 +640,7 @@ $page_title = "Water Consumption";
                         beginAtZero: true,
                         title: {
                             display: true,
-                            text: 'Cubic Meters (m³)'
+                            text: 'Cubic Centimeters (cm^3)'
                         }
                     }
                 }
@@ -561,7 +648,19 @@ $page_title = "Water Consumption";
         });
     </script>
     <?php endif; ?>
-    
+
+    <script>
+        (function () {
+            const refreshMs = <?php echo $has_assigned_meters ? ((int) IOT_SIMULATION_INTERVAL_SECONDS * 1000) + 5000 : 15000; ?>;
+
+            window.setInterval(function () {
+                if (document.visibilityState === 'visible') {
+                    window.location.reload();
+                }
+            }, refreshMs);
+        })();
+    </script>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <?php include '../includes/footer.php'; ?>
 </body>

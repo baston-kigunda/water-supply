@@ -10,6 +10,7 @@ header('Access-Control-Allow-Methods: POST, GET');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
 
 require_once '../config/database.php';
+require_once '../includes/functions.php';
 
 // API Key for authentication (should match what's in your meters)
 define('API_KEY', 'your-secret-api-key-here');
@@ -59,29 +60,7 @@ if (mysqli_num_rows($check) == 0) {
 }
 
 $meter = mysqli_fetch_assoc($check);
-
-// Insert reading
-$query = "INSERT INTO meter_readings (meter_id, reading_value, reading_time, is_automated) 
-          VALUES ({$meter['meter_id']}, $reading, '$timestamp', 1)";
-
-if (mysqli_query($conn, $query)) {
-    // Update meter last reading
-    mysqli_query($conn, "UPDATE smart_meters SET last_reading = $reading, last_reading_time = '$timestamp' WHERE meter_id = {$meter['meter_id']}");
-    
-    // Check for abnormal consumption (potential leak)
-    // Get average of last 3 readings
-    $avg_query = mysqli_query($conn, "SELECT AVG(reading_value) as avg_reading FROM meter_readings WHERE meter_id = {$meter['meter_id']} ORDER BY reading_time DESC LIMIT 3");
-    $avg = mysqli_fetch_assoc($avg_query);
-    
-    if ($avg['avg_reading'] && $reading > $avg['avg_reading'] * 2) {
-        // Possible leak detected
-        if ($meter['user_id']) {
-            $leak_query = "INSERT INTO leak_reports (user_id, meter_id, location_description, leak_description, priority, report_status) 
-                          VALUES ({$meter['user_id']}, {$meter['meter_id']}, '{$meter['location']}', 'Abnormal water consumption detected', 'high', 'pending')";
-            mysqli_query($conn, $leak_query);
-        }
-    }
-    
+if (recordMeterReadingAt((int) $meter['meter_id'], $reading, $timestamp, true, true, true)) {
     echo json_encode([
         'success' => true,
         'message' => 'Reading recorded successfully',

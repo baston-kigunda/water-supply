@@ -22,17 +22,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $user_id = $_POST['user_id'] ?: null;
                 $location = $_POST['location'];
                 $installation_date = $_POST['installation_date'];
-                
-                $stmt = $conn->prepare("
-                    INSERT INTO smart_meters (meter_number, user_id, location, installation_date, meter_status) 
-                    VALUES (?, ?, ?, ?, 'active')
-                ");
-                $stmt->bind_param("siss", $meter_number, $user_id, $location, $installation_date);
-                
-                if ($stmt->execute()) {
-                    $message = "Meter added successfully!";
-                } else {
-                    $error = "Error adding meter: " . $conn->error;
+
+                $conn->begin_transaction();
+
+                try {
+                    $stmt = $conn->prepare("
+                        INSERT INTO smart_meters (meter_number, user_id, location, installation_date, meter_status) 
+                        VALUES (?, ?, ?, ?, 'active')
+                    ");
+                    $stmt->bind_param("siss", $meter_number, $user_id, $location, $installation_date);
+
+                    if (!$stmt->execute()) {
+                        throw new Exception("Error adding meter: " . $conn->error);
+                    }
+
+                    $meter_id = $conn->insert_id;
+
+                    if ($user_id && !ensureMeterBillingStarted((int) $user_id, (int) $meter_id, date('Y-m'), null, NEW_CUSTOMER_INITIAL_UNITS)) {
+                        throw new Exception("Meter was added, but billing could not be started.");
+                    }
+
+                    if ($user_id && !ensureMeterSimulationStarted((int) $meter_id, (int) $user_id)) {
+                        throw new Exception("Meter was added, but IoT simulation could not be started.");
+                    }
+
+                    $conn->commit();
+                    $message = $user_id
+                        ? "Meter added successfully, IoT simulation has started, and the first bill now includes " . number_format(NEW_CUSTOMER_INITIAL_UNITS, 2) . " m3 of water!"
+                        : "Meter added successfully!";
+                } catch (Exception $e) {
+                    $conn->rollback();
+                    $error = $e->getMessage();
                 }
                 break;
                 
@@ -40,14 +60,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Assign meter to user
                 $meter_id = $_POST['meter_id'];
                 $user_id = $_POST['user_id'];
-                
-                $stmt = $conn->prepare("UPDATE smart_meters SET user_id=? WHERE meter_id=?");
-                $stmt->bind_param("ii", $user_id, $meter_id);
-                
-                if ($stmt->execute()) {
-                    $message = "Meter assigned successfully!";
-                } else {
-                    $error = "Error assigning meter: " . $conn->error;
+
+                $conn->begin_transaction();
+
+                try {
+                    $stmt = $conn->prepare("UPDATE smart_meters SET user_id=?, meter_status='active' WHERE meter_id=?");
+                    $stmt->bind_param("ii", $user_id, $meter_id);
+
+                    if (!$stmt->execute()) {
+                        throw new Exception("Error assigning meter: " . $conn->error);
+                    }
+
+                    if (!ensureMeterBillingStarted((int) $user_id, (int) $meter_id, date('Y-m'), null, NEW_CUSTOMER_INITIAL_UNITS)) {
+                        throw new Exception("Meter was assigned, but billing could not be started.");
+                    }
+
+                    if (!ensureMeterSimulationStarted((int) $meter_id, (int) $user_id)) {
+                        throw new Exception("Meter was assigned, but IoT simulation could not be started.");
+                    }
+
+                    $conn->commit();
+                    $message = "Meter assigned successfully. Simulated IoT readings have started and the bill will keep updating every minute.";
+                } catch (Exception $e) {
+                    $conn->rollback();
+                    $error = $e->getMessage();
                 }
                 break;
                 
@@ -178,6 +214,11 @@ $page_title = "Manage Smart Meters";
                         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
                 <?php endif; ?>
+
+                <div class="alert alert-info">
+                    <i class="bi bi-cpu"></i>
+                    Assigned active meters now simulate IoT readings automatically. Water usage records are generated every minute and customer bills are updated from those readings.
+                </div>
 
                 <!-- Summary Cards -->
                 <div class="row mb-4">

@@ -12,8 +12,8 @@ require_once '../config/database.php';
 require_once '../includes/functions.php';
 
 // M-Pesa configuration
-define('MPESA_CONSUMER_KEY', 'your_consumer_key');
-define('MPESA_CONSUMER_SECRET', 'your_consumer_secret');
+define('MPESA_CONSUMER_KEY', 'WEmmiMG7TFPW11mjJcT0coqp11QHLkifIMvgQ3K8gCEp3DyD');
+define('MPESA_CONSUMER_SECRET', 'g7yLC8rmkxxA1mDkGQvzf5IAbkr5CQdIBgJAGihpgssD2s5dneBkiVexhYGcBRbk');
 define('MPESA_PASSKEY', 'your_passkey');
 define('MPESA_SHORTCODE', '174379');
 define('MPESA_ENVIRONMENT', 'sandbox'); // sandbox or production
@@ -121,16 +121,7 @@ function handleCallback($data) {
             $payment_data = mysqli_fetch_assoc($payment);
             
             if ($payment_data && $payment_data['bill_id']) {
-                // Check if bill is fully paid
-                $bill_total = mysqli_query($conn, "SELECT total_amount FROM bills WHERE bill_id = {$payment_data['bill_id']}");
-                $bill = mysqli_fetch_assoc($bill_total);
-                
-                $paid_total = mysqli_query($conn, "SELECT SUM(amount) as total FROM payments WHERE bill_id = {$payment_data['bill_id']} AND payment_status = 'completed'");
-                $paid = mysqli_fetch_assoc($paid_total);
-                
-                if ($paid['total'] >= $bill['total_amount']) {
-                    mysqli_query($conn, "UPDATE bills SET bill_status = 'paid' WHERE bill_id = {$payment_data['bill_id']}");
-                }
+                updateBillStatusFromPayments((int) $payment_data['bill_id']);
             }
             
             // Create notification

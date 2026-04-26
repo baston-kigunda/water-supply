@@ -20,24 +20,22 @@ $error = '';
 
 // Handle payment submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['make_payment'])) {
-    $bill_id = $_POST['bill_id'];
-    $amount = $_POST['amount'];
-    $payment_method = $_POST['payment_method'];
-    
-    // Validate amount
-    $stmt = $conn->prepare("SELECT total_amount, bill_status FROM bills WHERE bill_id = ? AND user_id = ?");
-    $stmt->bind_param("ii", $bill_id, $user_id);
-    $stmt->execute();
-    $bill = $stmt->get_result()->fetch_assoc();
+    $bill_id = isset($_POST['bill_id']) ? (int) $_POST['bill_id'] : 0;
+    $amount = isset($_POST['amount']) ? (float) $_POST['amount'] : 0;
+    $payment_method = trim($_POST['payment_method'] ?? '');
+    $allowed_payment_methods = ['mpesa', 'card', 'bank', 'cash'];
+    $bill = getBillPaymentSummary($bill_id, $user_id);
     
     if (!$bill) {
         $error = "Invalid bill selected.";
-    } elseif ($bill['bill_status'] == 'paid') {
+    } elseif ($bill['bill_status'] == 'paid' || $bill['amount_due'] <= 0) {
         $error = "This bill is already paid.";
     } elseif ($amount <= 0) {
         $error = "Invalid payment amount.";
-    } elseif ($amount > $bill['total_amount']) {
-        $error = "Payment amount cannot exceed bill amount.";
+    } elseif (!in_array($payment_method, $allowed_payment_methods, true)) {
+        $error = "Please select a valid payment method.";
+    } elseif ($amount > $bill['amount_due']) {
+        $error = "Payment amount cannot exceed the remaining balance of " . formatCurrency($bill['amount_due']) . ".";
     } else {
         // Generate transaction code
         $transaction_code = strtoupper(uniqid('TXN'));
@@ -50,22 +48,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['make_payment'])) {
         $stmt->bind_param("iidss", $bill_id, $user_id, $amount, $payment_method, $transaction_code);
         
         if ($stmt->execute()) {
-            // Check if bill is fully paid
-            $total_paid = $conn->query("
-                SELECT COALESCE(SUM(amount), 0) as total 
-                FROM payments 
-                WHERE bill_id = $bill_id AND payment_status = 'completed'
-            ")->fetch_assoc()['total'];
-            
-            if ($total_paid >= $bill['total_amount']) {
-                $conn->query("UPDATE bills SET bill_status = 'paid' WHERE bill_id = $bill_id");
-            }
+            updateBillStatusFromPayments($bill_id);
+            $updated_bill = getBillPaymentSummary($bill_id, $user_id);
+            $remaining_balance = $updated_bill ? $updated_bill['amount_due'] : max(0, $bill['amount_due'] - $amount);
             
             // Create notification
             createNotification(
                 $user_id,
                 "Payment Successful",
-                "Your payment of " . formatCurrency($amount) . " for bill #$bill_id has been received. Transaction code: $transaction_code",
+                "Your payment of " . formatCurrency($amount) . " for bill #$bill_id has been received. Remaining balance: " . formatCurrency($remaining_balance) . ". Transaction code: $transaction_code",
                 'payment'
             );
             
@@ -76,14 +67,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['make_payment'])) {
     }
 }
 
-// Get unpaid bills for payment dropdown
-$unpaid_bills = $conn->query("
-    SELECT b.*, sm.meter_number 
+// Get unpaid bills for payment dashboard
+$stmt = $conn->prepare("
+    SELECT
+        b.bill_id,
+        b.billing_month,
+        b.bill_status,
+        b.total_amount,
+        b.due_date,
+        sm.meter_number,
+        COALESCE(SUM(CASE WHEN p.payment_status = 'completed' THEN p.amount ELSE 0 END), 0) as amount_paid
     FROM bills b
     JOIN smart_meters sm ON b.meter_id = sm.meter_id
-    WHERE b.user_id = $user_id AND b.bill_status IN ('pending', 'overdue')
-    ORDER BY b.due_date ASC
+    LEFT JOIN payments p ON b.bill_id = p.bill_id
+    WHERE b.user_id = ? AND b.bill_status IN ('pending', 'overdue')
+    GROUP BY b.bill_id, b.billing_month, b.bill_status, b.total_amount, b.due_date, sm.meter_number
+    ORDER BY b.due_date ASC, b.bill_id ASC
 ");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$unpaid_bills_result = $stmt->get_result();
+
+$unpaid_bills = [];
+while ($bill = $unpaid_bills_result->fetch_assoc()) {
+    $bill['total_amount'] = (float) $bill['total_amount'];
+    $bill['amount_paid'] = (float) ($bill['amount_paid'] ?? 0);
+    $bill['amount_due'] = max(0, $bill['total_amount'] - $bill['amount_paid']);
+
+    if ($bill['amount_due'] <= 0) {
+        continue;
+    }
+
+    $unpaid_bills[] = $bill;
+}
 
 // Get payment history
 $payments = $conn->query("
@@ -116,6 +132,10 @@ $result = $conn->query("
     AND YEAR(payment_date) = YEAR(CURRENT_DATE())
 ");
 $stats['month_paid'] = $result->fetch_assoc()['total'];
+$stats['bills_to_pay'] = count($unpaid_bills);
+$stats['amount_due'] = array_reduce($unpaid_bills, function ($carry, $bill) {
+    return $carry + $bill['amount_due'];
+}, 0.0);
 
 // Last payment
 $result = $conn->query("
@@ -217,7 +237,7 @@ $page_title = "Payments";
 
                 <!-- Statistics Cards -->
                 <div class="row mb-4">
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <div class="card dashboard-card bg-primary text-white">
                             <div class="card-body">
                                 <h6>Total Payments</h6>
@@ -225,7 +245,7 @@ $page_title = "Payments";
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <div class="card dashboard-card bg-success text-white">
                             <div class="card-body">
                                 <h6>This Month</h6>
@@ -233,20 +253,31 @@ $page_title = "Payments";
                             </div>
                         </div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
+                        <div class="card dashboard-card bg-warning text-white">
+                            <div class="card-body">
+                                <h6>Bills To Pay</h6>
+                                <h3><?php echo $stats['bills_to_pay']; ?></h3>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
                         <div class="card dashboard-card bg-info text-white">
                             <div class="card-body">
-                                <h6>Last Payment</h6>
-                                <?php if ($last_payment): ?>
-                                    <h5><?php echo formatCurrency($last_payment['amount']); ?></h5>
-                                    <small><?php echo date('M d, Y', strtotime($last_payment['payment_date'])); ?></small>
-                                <?php else: ?>
-                                    <h5>No payments yet</h5>
-                                <?php endif; ?>
+                                <h6>Amount Due</h6>
+                                <h3><?php echo formatCurrency($stats['amount_due']); ?></h3>
                             </div>
                         </div>
                     </div>
                 </div>
+
+                <?php if ($last_payment): ?>
+                    <div class="alert alert-light border mb-4">
+                        <i class="bi bi-clock-history text-primary"></i>
+                        Last payment: <strong><?php echo formatCurrency($last_payment['amount']); ?></strong>
+                        on <?php echo date('M d, Y', strtotime($last_payment['payment_date'])); ?>
+                    </div>
+                <?php endif; ?>
 
                 <div class="row">
                     <!-- Make Payment Form -->
@@ -256,29 +287,34 @@ $page_title = "Payments";
                                 <h5 class="mb-0"><i class="bi bi-cash"></i> Make a Payment</h5>
                             </div>
                             <div class="card-body">
-                                <?php if ($unpaid_bills->num_rows > 0): ?>
+                                <?php if (!empty($unpaid_bills)): ?>
                                     <form method="POST" onsubmit="return validatePayment()">
                                         <div class="mb-3">
                                             <label for="bill_id" class="form-label">Select Bill</label>
                                             <select class="form-control" id="bill_id" name="bill_id" required onchange="updateBillAmount()">
                                                 <option value="">-- Choose Bill --</option>
-                                                <?php while ($bill = $unpaid_bills->fetch_assoc()): ?>
+                                                <?php foreach ($unpaid_bills as $bill): ?>
                                                     <option value="<?php echo $bill['bill_id']; ?>" 
-                                                            data-amount="<?php echo $bill['total_amount']; ?>"
+                                                            data-amount-due="<?php echo number_format($bill['amount_due'], 2, '.', ''); ?>"
+                                                            data-total-amount="<?php echo number_format($bill['total_amount'], 2, '.', ''); ?>"
+                                                            data-paid-amount="<?php echo number_format($bill['amount_paid'], 2, '.', ''); ?>"
+                                                            data-meter="<?php echo htmlspecialchars($bill['meter_number']); ?>"
+                                                            data-status="<?php echo htmlspecialchars($bill['bill_status']); ?>"
                                                             data-duedate="<?php echo $bill['due_date']; ?>">
                                                         #<?php echo $bill['bill_id']; ?> - 
+                                                        <?php echo htmlspecialchars($bill['meter_number']); ?> - 
                                                         <?php echo date('M Y', strtotime($bill['billing_month'])); ?> - 
-                                                        <?php echo formatCurrency($bill['total_amount']); ?>
+                                                        Due <?php echo formatCurrency($bill['amount_due']); ?>
                                                         (<?php echo ucfirst($bill['bill_status']); ?>)
                                                     </option>
-                                                <?php endwhile; ?>
+                                                <?php endforeach; ?>
                                             </select>
                                         </div>
                                         
                                         <div class="mb-3">
                                             <label for="amount" class="form-label">Amount (<?php echo CURRENCY; ?>)</label>
                                             <input type="number" class="form-control" id="amount" name="amount" step="0.01" min="1" required>
-                                            <small class="text-muted">You can pay partially or full amount</small>
+                                            <small class="text-muted">Enter the amount you want to pay toward the remaining balance</small>
                                         </div>
                                         
                                         <div class="mb-3">
@@ -303,8 +339,12 @@ $page_title = "Payments";
                                         </div>
                                         
                                         <div class="alert alert-info" id="bill_info" style="display: none;">
+                                            <strong>Meter:</strong> <span id="meter_number"></span><br>
+                                            <strong>Status:</strong> <span id="bill_status"></span><br>
                                             <strong>Bill Due Date:</strong> <span id="due_date"></span><br>
-                                            <strong>Full Amount:</strong> <span id="full_amount"></span>
+                                            <strong>Original Bill:</strong> <span id="full_amount"></span><br>
+                                            <strong>Already Paid:</strong> <span id="paid_amount"></span><br>
+                                            <strong>Remaining Balance:</strong> <span id="remaining_amount"></span>
                                         </div>
                                         
                                         <button type="submit" name="make_payment" class="btn btn-success w-100">
@@ -319,6 +359,43 @@ $page_title = "Payments";
                                 <?php endif; ?>
                             </div>
                         </div>
+
+                        <?php if (!empty($unpaid_bills)): ?>
+                            <div class="card dashboard-card mt-4">
+                                <div class="card-header bg-warning text-dark">
+                                    <h5 class="mb-0"><i class="bi bi-receipt-cutoff"></i> Bills Awaiting Payment</h5>
+                                </div>
+                                <div class="card-body">
+                                    <?php foreach ($unpaid_bills as $bill): ?>
+                                        <div class="border rounded p-3 mb-3">
+                                            <div class="d-flex justify-content-between align-items-start gap-3">
+                                                <div>
+                                                    <h6 class="mb-1">Bill #<?php echo $bill['bill_id']; ?></h6>
+                                                    <div class="text-muted small">
+                                                        <?php echo htmlspecialchars($bill['meter_number']); ?> •
+                                                        <?php echo date('F Y', strtotime($bill['billing_month'])); ?>
+                                                    </div>
+                                                </div>
+                                                <span class="badge bg-<?php echo $bill['bill_status'] === 'overdue' ? 'danger' : 'warning'; ?>">
+                                                    <?php echo ucfirst($bill['bill_status']); ?>
+                                                </span>
+                                            </div>
+
+                                            <div class="mt-3 small">
+                                                <div><strong>Due date:</strong> <?php echo date('M d, Y', strtotime($bill['due_date'])); ?></div>
+                                                <div><strong>Original bill:</strong> <?php echo formatCurrency($bill['total_amount']); ?></div>
+                                                <div><strong>Paid so far:</strong> <?php echo formatCurrency($bill['amount_paid']); ?></div>
+                                                <div><strong>Remaining:</strong> <?php echo formatCurrency($bill['amount_due']); ?></div>
+                                            </div>
+
+                                            <button type="button" class="btn btn-sm btn-outline-success mt-3" onclick="selectBillForPayment('<?php echo $bill['bill_id']; ?>')">
+                                                <i class="bi bi-cash"></i> Pay This Bill
+                                            </button>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                        <?php endif; ?>
                         
                         <!-- Payment Methods Summary -->
                         <?php if ($methods->num_rows > 0): ?>
@@ -412,14 +489,31 @@ $page_title = "Payments";
     </div>
 
     <script>
+        function formatCurrencyValue(amount) {
+            return '<?php echo CURRENCY; ?> ' + Number(amount).toFixed(2);
+        }
+
         function updateBillAmount() {
             var select = document.getElementById('bill_id');
-            var amount = select.options[select.selectedIndex].getAttribute('data-amount');
-            var dueDate = select.options[select.selectedIndex].getAttribute('data-duedate');
+            if (!select || select.selectedIndex < 0) {
+                return;
+            }
+
+            var option = select.options[select.selectedIndex];
+            var amountDue = option.getAttribute('data-amount-due');
+            var totalAmount = option.getAttribute('data-total-amount');
+            var paidAmount = option.getAttribute('data-paid-amount');
+            var meter = option.getAttribute('data-meter');
+            var status = option.getAttribute('data-status');
+            var dueDate = option.getAttribute('data-duedate');
             
-            if (amount) {
-                document.getElementById('amount').value = amount;
-                document.getElementById('full_amount').innerHTML = '<?php echo CURRENCY; ?> ' + parseFloat(amount).toFixed(2);
+            if (amountDue) {
+                document.getElementById('amount').value = parseFloat(amountDue).toFixed(2);
+                document.getElementById('full_amount').innerHTML = formatCurrencyValue(totalAmount);
+                document.getElementById('paid_amount').innerHTML = formatCurrencyValue(paidAmount);
+                document.getElementById('remaining_amount').innerHTML = formatCurrencyValue(amountDue);
+                document.getElementById('meter_number').innerHTML = meter;
+                document.getElementById('bill_status').innerHTML = status ? status.charAt(0).toUpperCase() + status.slice(1) : '';
                 document.getElementById('due_date').innerHTML = new Date(dueDate).toLocaleDateString();
                 document.getElementById('bill_info').style.display = 'block';
             } else {
@@ -428,37 +522,73 @@ $page_title = "Payments";
         }
 
         function validatePayment() {
-            var amount = document.getElementById('amount').value;
+            var amount = parseFloat(document.getElementById('amount').value || '0');
+            var select = document.getElementById('bill_id');
+
+            if (!select || !select.value) {
+                alert('Please select a bill to pay');
+                return false;
+            }
+
+            var option = select.options[select.selectedIndex];
+            var amountDue = parseFloat(option.getAttribute('data-amount-due') || '0');
+
             if (amount <= 0) {
                 alert('Please enter a valid amount');
                 return false;
             }
-            return confirm('Confirm payment of <?php echo CURRENCY; ?> ' + amount + '?');
+
+            if (amount > amountDue) {
+                alert('Payment amount cannot exceed the remaining balance of ' + formatCurrencyValue(amountDue));
+                return false;
+            }
+
+            return confirm('Confirm payment of <?php echo CURRENCY; ?> ' + amount.toFixed(2) + '?');
         }
 
-        // Show/hide payment method details
-        document.getElementById('payment_method').addEventListener('change', function() {
-            var method = this.value;
-            document.getElementById('mpesa_details').style.display = method === 'mpesa' ? 'block' : 'none';
-            document.getElementById('card_details').style.display = method === 'card' ? 'block' : 'none';
-        });
+        function selectBillForPayment(billId) {
+            var select = document.getElementById('bill_id');
+            if (!select) {
+                return;
+            }
 
-        <?php if (isset($_GET['bill_id'])): ?>
-        // Auto-select bill if passed in URL
-        window.onload = function() {
+            for (var i = 0; i < select.options.length; i++) {
+                if (select.options[i].value === billId) {
+                    select.selectedIndex = i;
+                    updateBillAmount();
+                    select.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    break;
+                }
+            }
+        }
+
+        var paymentMethod = document.getElementById('payment_method');
+        if (paymentMethod) {
+            paymentMethod.addEventListener('change', function() {
+                var method = this.value;
+                document.getElementById('mpesa_details').style.display = method === 'mpesa' ? 'block' : 'none';
+                document.getElementById('card_details').style.display = method === 'card' ? 'block' : 'none';
+            });
+        }
+
+        window.addEventListener('load', function() {
             var billId = '<?php echo $_GET['bill_id'] ?? ''; ?>';
+            var select = document.getElementById('bill_id');
+
+            if (!select) {
+                return;
+            }
+
             if (billId) {
-                var select = document.getElementById('bill_id');
                 for (var i = 0; i < select.options.length; i++) {
                     if (select.options[i].value === billId) {
                         select.selectedIndex = i;
                         updateBillAmount();
-                        break;
+                        return;
                     }
                 }
             }
-        }
-        <?php endif; ?>
+        });
     </script>
 
     <?php include '../includes/footer.php'; ?>
